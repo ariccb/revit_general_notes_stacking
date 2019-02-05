@@ -1,0 +1,4 @@
+cd OutDir
+copy "Debug Manifest Files\GeneralNotesTools2017.addin" "C:\ProgramData\Autodesk\Revit\Addins\2017"
+copy "Debug Manifest Files\GeneralNotesTools2018.addin" "C:\ProgramData\Autodesk\Revit\Addins\2018"
+copy "Debug Manifest Files\GeneralNotesTools2019.addin" "C:\ProgramData\Autodesk\Revit\Addins\2019"
