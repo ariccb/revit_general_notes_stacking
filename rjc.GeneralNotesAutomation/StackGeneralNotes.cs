@@ -37,6 +37,18 @@ namespace rjc.GeneralNotesAutomation
             double sheetOriginX = 3.561639;
             double sheetOriginY = 2.932821;
             double sheetOriginZ = 0;
+            
+            //add functionility to check if the active view is a sheet view.
+            //add functionality to measure screen titleblock size here
+            //get bounding box of elements in active view - which is the sheet
+            //this might nit work for client title blocks
+            //possible filtered element collect families in the active view that are titleblock
+            //this might not work if we're using a clients title block
+            //best course is to prompt user to select point in view as the working base point
+            //this information is save to a configuration file in the project
+            //if its a centrail file, save to central file location
+            //if not, save to current file location
+            
 
             //max sizes for 36x48
             double maxSheetHeight = 2.868767;
