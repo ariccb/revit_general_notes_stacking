@@ -52,8 +52,14 @@
     <Compile Include="Application.cs" />
     <Compile Include="InsertGeneralNotes.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="StackGeneralNotes.cs" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="..\..\rjcUtilityClasses\rjc.UtilityClasses\rjc.UtilityClasses.csproj">
+      <Project>{3d67f41f-2d01-4b40-982b-e22f1911058d}</Project>
+      <Name>rjc.UtilityClasses</Name>
+    </ProjectReference>
+  </ItemGroup>
   <ItemGroup>
     <Content Include="Debug Manifest Files\GeneralNotesTools2017.addin">
       <SubType>Designer</SubType>

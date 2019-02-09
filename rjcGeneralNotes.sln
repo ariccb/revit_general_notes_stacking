@@ -5,6 +5,8 @@ VisualStudioVersion = 15.0.27428.2015
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "rjc.GeneralNotesAutomation", "rjc.GeneralNotesAutomation\rjc.GeneralNotesAutomation.csproj", "{0E4BDCE7-2F44-41AA-A20B-2E486B9E4592}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "rjc.UtilityClasses", "..\rjcUtilityClasses\rjc.UtilityClasses\rjc.UtilityClasses.csproj", "{3D67F41F-2D01-4B40-982B-E22F1911058D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{0E4BDCE7-2F44-41AA-A20B-2E486B9E4592}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0E4BDCE7-2F44-41AA-A20B-2E486B9E4592}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0E4BDCE7-2F44-41AA-A20B-2E486B9E4592}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D67F41F-2D01-4B40-982B-E22F1911058D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D67F41F-2D01-4B40-982B-E22F1911058D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D67F41F-2D01-4B40-982B-E22F1911058D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D67F41F-2D01-4B40-982B-E22F1911058D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
