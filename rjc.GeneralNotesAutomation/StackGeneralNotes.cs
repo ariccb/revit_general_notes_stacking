@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,6 +8,7 @@ using Autodesk.Revit.ApplicationServices;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.UI.Selection;
 
 namespace rjc.GeneralNotesAutomation
 {
@@ -21,60 +23,234 @@ namespace rjc.GeneralNotesAutomation
             Document doc = uiDoc.Document;
             View currentView = uiDoc.ActiveView;
 
-            //get drafting views in view
+            //initialize utility classes
+            UtilityClasses.Vectors vectorUtilities = new UtilityClasses.Vectors();
+            UtilityClasses.Views viewUtilities = new UtilityClasses.Views();
+            UtilityClasses.UnitConversion unitConversion = new UtilityClasses.UnitConversion();
 
+            #region  prompt user to select new working origin
+            PickedBox pickedBox = uiDoc.Selection.PickBox(PickBoxStyle.Enclosing, "Select Working Sheet Area");
+            XYZ workingOrigin = pickedBox.Max;
+            XYZ nextOrigin = pickedBox.Max;
+            //double BoundingBoxBorder = 0.01; //in feet
+            #endregion
+        
+            #region get bounds of sheet view title block DEPRECATED
+            /*
+            FilteredElementCollector currentTitleBlockCollector = new FilteredElementCollector(doc);
+            currentTitleBlockCollector
+                .OfClass(typeof(FamilyInstance))
+                .OfCategory(BuiltInCategory.OST_TitleBlocks)
+                .OwnedByView(currentView.Id);
+
+            Element currentTitleBlock = currentTitleBlockCollector.FirstElement();
+            BoundingBoxXYZ currentTitleBlockBounds = currentTitleBlock.get_BoundingBox(currentView);
+            double workingOriginX = workingOrigin.X;
+            double workingOriginY = workingOrigin.Y;
+            double workingOriginZ = workingOrigin.Z;
+
+            double titleBlockWidth = currentTitleBlockBounds.Max.X - currentTitleBlockBounds.Min.X;
+            double titleBlockHeight = currentTitleBlockBounds.Max.Y - currentTitleBlockBounds.Min.Y;
+            double rightBorderWidth = currentTitleBlockBounds.Max.X - workingOriginX;
+            double topBorderWidth = currentTitleBlockBounds.Max.Y - workingOriginY;
+            double bottomBorderWidth = topBorderWidth; //assumed for calc
+            double leftBorderWidth = topBorderWidth; //assumed calc
+            double sheetWorkingWidth = titleBlockWidth - rightBorderWidth - leftBorderWidth; //assumed calc
+            double sheetWorkingHeight = (currentTitleBlockBounds.Max.Y - currentTitleBlockBounds.Min.Y) - topBorderWidth - bottomBorderWidth; //assumed calc
+
+            double generalNoteWidth = unitConversion.mmToFt(160);
+            int maxNumberOfColumns = Convert.ToInt32(Math.Floor(sheetWorkingWidth / generalNoteWidth))+1;
+            */
+            #endregion
+
+            #region get drafting views on sheet
+            //this collects the viewports which have been placed on sheets that are called or contain general notes
             FilteredElementCollector draftingViews = new FilteredElementCollector(doc);
-            List<ElementId> elementIds = draftingViews.OfCategory(BuiltInCategory.OST_Viewports).ToElementIds().ToList();
+            FilteredElementCollector generalNotesViewports = new FilteredElementCollector(doc);
+            ParameterValueProvider parameterViewportSheetNameProvider = new ParameterValueProvider(new ElementId((int)BuiltInParameter.VIEWPORT_SHEET_NAME));
+            FilterStringRuleEvaluator sheetNameContainsEvaluator = new FilterStringContains();
+            FilterStringRule filterViewportSheetNameStringRule = new FilterStringRule(parameterViewportSheetNameProvider, sheetNameContainsEvaluator, "General Notes", false);
+            ElementParameterFilter viewportSheetNameParameterFilter = new ElementParameterFilter(filterViewportSheetNameStringRule);
+            //collects viewports that are on sheets called "general notes"
+            generalNotesViewports.OfCategory(BuiltInCategory.OST_Viewports).WherePasses(viewportSheetNameParameterFilter);
+            #endregion
+
+            #region get sheets called general notes
+            //this collects the sheets that are called "general notes"
+            FilteredElementCollector generalNotesSheets = new FilteredElementCollector(doc);
+            ParameterValueProvider parameterSheetNameProvider = new ParameterValueProvider(new ElementId((int)BuiltInParameter.SHEET_NAME));
+            FilterStringRule filterSheetNameStringRule = new FilterStringRule(parameterSheetNameProvider, sheetNameContainsEvaluator, "General Notes", false);
+            ElementParameterFilter sheetNameParameterFilter = new ElementParameterFilter(filterSheetNameStringRule);
+            //collects sheets that are called "general notes"
+            generalNotesSheets.OfCategory(BuiltInCategory.OST_Sheets).WherePasses(sheetNameParameterFilter);
+
+            //create sheetdata instance and add to list of sheets
+            List<SheetData> sheetData = new List<SheetData>();
+            foreach(ViewSheet vs in generalNotesSheets)
+            {
+                sheetData.Add(new SheetData
+                {
+                    SheetId = vs.Id,
+                    SheetName = vs.Name,
+                    SheetNumber = vs.SheetNumber
+                });
+                
+            }
+
+            sheetData = sheetData.OrderBy(x => x.SheetNumber).ToList();
+            #endregion
+
+            #region collect view data
+
+            //create instance of view data list
+            List<ViewData> viewData = new List<ViewData>();
+
+            //iterate through viewports collects, and put view information in viewData
+            foreach (Viewport v in generalNotesViewports)
+            {
+                ElementId viewElementId = v.ViewId;
+                ElementId viewportElementId = v.Id;
+                View associatedView = doc.GetElement(v.ViewId) as View;
+                
+                
+                //get vertical length of note
+                BoundingBoxUV outline = associatedView.Outline;
+
+                UV topRightPoint = new UV(outline.Max.U, outline.Max.V);
+                UV bottomLeftPoint = new UV(outline.Min.U, outline.Min.V);
+                UV topLeftPoint = new UV(outline.Min.U, outline.Max.V);
+                UV bottomRightPoint = new UV(outline.Max.U, outline.Min.V);
+
+                Outline sheetOutline = v.GetBoxOutline();
+                
+                double viewLength = topRightPoint.V - bottomRightPoint.V;
+                ViewSheet viewSheet = doc.GetElement(v.SheetId) as ViewSheet;
+
+                FilteredElementCollector BK90Elements = new FilteredElementCollector(doc, viewElementId);
+
+                ParameterValueProvider GraphicStyleProvider = new ParameterValueProvider(new ElementId((int)BuiltInParameter.BUILDING_CURVE_GSTYLE));
+                FilterStringRuleEvaluator BK90Evaluator = new FilterStringContains();
+                FilterStringRule BK90FilterRule = new FilterStringRule(GraphicStyleProvider, BK90Evaluator, "S-ANNO-BK90", false);
+                ElementParameterFilter BK90ElementParameterFilter = new ElementParameterFilter(BK90FilterRule);
+                BK90Elements.OfCategory(BuiltInCategory.OST_Lines).WherePasses(BK90ElementParameterFilter);
+
+                List<XYZ> BK90PointList = new List<XYZ>();
+                foreach (Element e in BK90Elements)
+                {
+                    DetailCurve detailCurve = e as DetailLine;
+                    XYZ startPoint = detailCurve.GeometryCurve.GetEndPoint(0);
+                    XYZ endPoint = detailCurve.GeometryCurve.GetEndPoint(1);
+                    BK90PointList.Add(startPoint);
+                    BK90PointList.Add(endPoint);
+                }
+
+                //BK90PointList now contains all the points in the view
+                //need to find point with maximum x and y values, and point with min x and y values
+                double maxX = BK90PointList.Max(point => point.X);
+                double maxY = BK90PointList.Max(point => point.Y);
+                double minX = BK90PointList.Min(point => point.X);
+                double minY = BK90PointList.Min(point => point.Y);
+
+                //create bounding box
+                BoundingBoxUV BK90BoundingBoxUV = new BoundingBoxUV(minX, minY, maxX, maxY);
+
+                //Add ViewData
+                //ViewData item containing elementID, view name, and view length
+                viewData.Add(new ViewData
+                {
+                    viewElementId = viewElementId,
+                    viewName = associatedView.Name,
+                    viewLength = viewLength,
+                    //viewportElementId = viewportElementId,
+                    sheetNumber = viewSheet.SheetNumber,
+                    viewportOrigin = sheetOutline.MaximumPoint
+                });
+            }
+
+            viewData = viewData
+                .OrderBy(x => x.sheetNumber)
+                .ThenBy(x => x.viewLength)
+                .ToList();
+
+            #endregion
+
+            #region collect views called "no title"
 
             FilteredElementCollector viewTypeCollector = new FilteredElementCollector(doc);
-            //viewTypeCollector.OfCategory(BuiltInCategory.OST_ViewportLabel).FirstOrDefault(n => n.Name == "No Title");
-            //ElementIsElementTypeFilter filter = new ElementIsElementTypeFilter();
 
-            ElementId typeId = viewTypeCollector.WhereElementIsElementType().FirstOrDefault(n => n.Name == "No Title").Id;
+            //get view type id for view type "No Title"
+            ElementId typeId = viewTypeCollector
+                .WhereElementIsElementType()
+                .FirstOrDefault(n => n.Name == "No Title").Id;
 
-            //click top left corned of sheet to align
-            //Use origin for now
-            double sheetOriginX = 3.561639;
-            double sheetOriginY = 2.932821;
-            double sheetOriginZ = 0;
-            
-            //add functionility to check if the active view is a sheet view.
-            //add functionality to measure screen titleblock size here
-            //get bounding box of elements in active view - which is the sheet
-            //this might nit work for client title blocks
-            //possible filtered element collect families in the active view that are titleblock
-            //this might not work if we're using a clients title block
-            //best course is to prompt user to select point in view as the working base point
-            //this information is save to a configuration file in the project
-            //if its a centrail file, save to central file location
-            //if not, save to current file location
-            
+            #endregion
 
-            //max sizes for 36x48
-            double maxSheetHeight = 2.868767;
-            double maxSheetWidth = 3.429364;
-
-            XYZ origin = new XYZ(sheetOriginX, sheetOriginY, sheetOriginZ);
-            //XYZ origin = new XYZ();
-            XYZ nextOrigin = origin;
-            double BoundingBoxBorder = 0.01; //in feet
-
+            //OPTIMIZATION ALGORITHM
+            //get list of all ids for views identified as a general notes
+            //if note is on a sheet, remove it from the sheet. if not, do nothing
+            //using list of view IDs, calculate and create list of note lengths
+            //create new list of note length from smallest to largest
+            //synchronously sort list of note IDs
+            //Do this for all notes in project Identified as a General Note
+            //insert first note on sheet
+            //measure distance from bottom of note to bottom of sheet working area
+            //search through list of notes to find best fittng note without going over sheet working area
+            //if not view can be found, move over to new coloumn, repeat.
+            //repeat process until column maximum is reached.
+            //move to next sheet named "General Notes"
+            //if no sheet exists, create new sheet named "General Notes"
 
             //for each drafting view get bounding box
 
+            //viewData.Distinct() to remove duplicate items from list.
+
+            #region transaction to delete viewports and then recreate viewport
+
             Transaction transaction = new Transaction(doc);
+            TransactionGroup transactionGroup = new TransactionGroup(doc);
+
+            transactionGroup.Start("Stack Drafting Views");
+            //remove viewports from sheets so they can be placed fresh
+            foreach (ViewSheet vs in generalNotesSheets)
+            {
+                List<ElementId> viewPortIds = new List<ElementId>(vs.GetAllViewports());
+                foreach (ElementId vpId in viewPortIds)
+                {
+
+                    Viewport vp = doc.GetElement(vpId) as Viewport;
+                    transaction.Start("Delete Viewport");
+                    vs.DeleteViewport(vp);
+                    transaction.Commit();
+                }
+
+            }
+
+            int currentSheetIndex = 0;
+            foreach(var vd in viewData)
+            {
+                ElementId sheetElementId = sheetData[currentSheetIndex].SheetId;
+                Viewport.Create(doc, sheetElementId, vd.viewElementId, workingOrigin);
+            }
+
+            transactionGroup.Commit();
+
+            #endregion
+
+            /*
             transaction.Start("Move Drafting View");
 
-            Element.ChangeTypeId(doc, elementIds, typeId);
+            List<ElementId> draftingViewElementIds = new List<ElementId>();
+            foreach (var vd in viewData)
+            {
+                draftingViewElementIds.Add(vd.viewElementId);
+                View view = doc.GetElement(vd.viewElementId) as View;
+            }
+            Element.ChangeTypeId(doc, draftingViewElementIds, typeId);
 
-            Frame frame = new Frame();
-            Plane.Create(frame);
-            Arc.Create(Plane.Create(frame), .1, 0, 6.28319);
-
-            doc.Create.NewDetailCurve(currentView, Arc.Create(Plane.Create(frame), .1, 0, 6.28319));
+            int currentColumn = 0;
 
 
-            foreach (ElementId e in elementIds)
+            foreach (ElementId e in draftingViewElementIds)
             {
                 Viewport vp = doc.GetElement(e) as Viewport;
 
@@ -87,18 +263,6 @@ namespace rjc.GeneralNotesAutomation
                 BoundingBoxUV associatedViewBoundUV = associatedView.Outline;
                 GeometryElement geometryElement = vp.get_Geometry(new Options());
 
-
-                //reconcile sheet coordinate systems and view coordinate system by matching the origins of both.
-                //The origin view must be moved to the origin of the sheet. Then any location on the view will match the sheet.
-
-                //Arc arc1 = Arc.Create(new XYZ(associatedViewBoundUV.Max.U, associatedViewBoundUV.Max.V, 0), .05, 0, 2 * Math.PI, new XYZ(1, 0, 0), new XYZ(0, 1, 0));
-                //Arc arc2 = Arc.Create(new XYZ(associatedViewBoundUV.Min.U, associatedViewBoundUV.Min.V, 0), .05, 0, 2 * Math.PI, new XYZ(1, 0, 0), new XYZ(0, 1, 0));
-                //doc.Create.NewDetailCurve(currentView, arc1);
-                //doc.Create.NewDetailCurve(currentView, arc2);
-
-                //doc.Create.NewDetailCurve(currentView, Arc.Create(Plane.Create(new Frame(new XYZ(associatedViewBoundUV.Max.U, associatedViewBoundUV.Max.V, 0), new XYZ(1, 0, 0), new XYZ(0, 1, 0), new XYZ(0, 0, 1))), .1, 0, 6.28319));
-                //doc.Create.NewDetailCurve(currentView, Arc.Create(Plane.Create(new Frame(new XYZ(associatedViewBoundUV.Min.U,associatedViewBoundUV.Min.V,0),new XYZ(1,0,0),new XYZ(0,1,0),new XYZ(0,0,1))), .1, 0, 6.28319));
-
                 Outline outline = vp.GetBoxOutline();
 
                 //Working points of bounding box
@@ -106,33 +270,18 @@ namespace rjc.GeneralNotesAutomation
                 XYZ bottomLeftPoint = new XYZ(outline.MinimumPoint.X + BoundingBoxBorder, outline.MinimumPoint.Y + BoundingBoxBorder, 0);
                 XYZ topLeftPoint = new XYZ(outline.MinimumPoint.X + BoundingBoxBorder, outline.MaximumPoint.Y - BoundingBoxBorder, 0);
                 XYZ bottomRightPoint = new XYZ(outline.MaximumPoint.X - BoundingBoxBorder, outline.MinimumPoint.Y + BoundingBoxBorder, 0);
-                //XYZ topRightPoint = new XYZ(outline.MaximumPoint.X, outline.MaximumPoint.Y, 0);
-                //XYZ bottomLeftPoint = new XYZ(outline.MinimumPoint.X, outline.MinimumPoint.Y, 0);
-                //XYZ topLeftPoint = new XYZ(outline.MinimumPoint.X, outline.MaximumPoint.Y, 0);
-                //XYZ bottomRightPoint = new XYZ(outline.MaximumPoint.X, outline.MinimumPoint.Y, 0);
-
-                doc.Create.NewDetailCurve(currentView, Line.CreateBound(topLeftPoint, topRightPoint));
-                doc.Create.NewDetailCurve(currentView, Line.CreateBound(topRightPoint, bottomRightPoint));
-                doc.Create.NewDetailCurve(currentView, Line.CreateBound(bottomRightPoint, bottomLeftPoint));
-                doc.Create.NewDetailCurve(currentView, Line.CreateBound(bottomLeftPoint, topLeftPoint));
-
-
-
-                rjc.UtilityClasses.Vectors createVectors = new UtilityClasses.Vectors();
-
 
                 //calculate distance  and vector from top right corner of bouning box to clicked corner, this is first translation vector,
-                ElementTransformUtils.MoveElement(doc, e, createVectors.TwoPointVector(topRightPoint, nextOrigin));
+                ElementTransformUtils.MoveElement(doc, e, vectorUtilities.TwoPointVector(topRightPoint, nextOrigin));
 
                 //get bounding box again to determine location of next origin point
                 outline = vp.GetBoxOutline();
-                nextOrigin = new XYZ(outline.MaximumPoint.X-BoundingBoxBorder, outline.MinimumPoint.Y+BoundingBoxBorder, 0);
+                nextOrigin = new XYZ(workingOriginX-(currentColumn*generalNoteWidth), outline.MinimumPoint.Y+BoundingBoxBorder, 0);
             }
+            
 
             transaction.Commit();
-
-
-
+            */
 
 
             //iterate to next index. using bottom right corned of index-1 bounding box to find new top right of current index.
