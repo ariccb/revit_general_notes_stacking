@@ -14,5 +14,8 @@ namespace rjc.GeneralNotesAutomation
         public string SheetNumber { get; set; }
 
         public string SheetName { get; set; }
+
+        public ElementId TitleBlockId { get; set; }
+
     }
 }

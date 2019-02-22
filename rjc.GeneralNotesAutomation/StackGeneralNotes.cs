@@ -29,10 +29,10 @@ namespace rjc.GeneralNotesAutomation
             UtilityClasses.UnitConversion unitConversion = new UtilityClasses.UnitConversion();
 
             #region  prompt user to select new working origin
-            PickedBox pickedBox = uiDoc.Selection.PickBox(PickBoxStyle.Enclosing, "Select Working Sheet Area");
-            XYZ workingOrigin = pickedBox.Max;
-            XYZ nextOrigin = pickedBox.Max;
-            //double BoundingBoxBorder = 0.01; //in feet
+            XYZ topRightWorkingArea = uiDoc.Selection.PickPoint("Select Top Right Of Working Area");
+            XYZ bottomLeftWorkingArea = uiDoc.Selection.PickPoint("Select Bottom Left Of Working Area");
+            //PickedBox pickedBox = uiDoc.Selection.PickBox(PickBoxStyle.Enclosing, "Select Working Sheet Area");
+    
             #endregion
         
             #region get bounds of sheet view title block DEPRECATED
@@ -93,6 +93,7 @@ namespace rjc.GeneralNotesAutomation
                     SheetId = vs.Id,
                     SheetName = vs.Name,
                     SheetNumber = vs.SheetNumber
+                    
                 });
                 
             }
@@ -126,6 +127,7 @@ namespace rjc.GeneralNotesAutomation
                 double viewLength = topRightPoint.V - bottomRightPoint.V;
                 ViewSheet viewSheet = doc.GetElement(v.SheetId) as ViewSheet;
 
+                /*
                 FilteredElementCollector BK90Elements = new FilteredElementCollector(doc, viewElementId);
 
                 ParameterValueProvider GraphicStyleProvider = new ParameterValueProvider(new ElementId((int)BuiltInParameter.BUILDING_CURVE_GSTYLE));
@@ -150,9 +152,11 @@ namespace rjc.GeneralNotesAutomation
                 double maxY = BK90PointList.Max(point => point.Y);
                 double minX = BK90PointList.Min(point => point.X);
                 double minY = BK90PointList.Min(point => point.Y);
+                
 
                 //create bounding box
                 BoundingBoxUV BK90BoundingBoxUV = new BoundingBoxUV(minX, minY, maxX, maxY);
+                */
 
                 //Add ViewData
                 //ViewData item containing elementID, view name, and view length
@@ -163,13 +167,17 @@ namespace rjc.GeneralNotesAutomation
                     viewLength = viewLength,
                     //viewportElementId = viewportElementId,
                     sheetNumber = viewSheet.SheetNumber,
-                    viewportOrigin = sheetOutline.MaximumPoint
+                    viewportOriginX = sheetOutline.MaximumPoint.X,
+                    viewportOriginY = sheetOutline.MaximumPoint.Y,
+                    canPlaceOnSheet = true
                 });
             }
 
             viewData = viewData
                 .OrderBy(x => x.sheetNumber)
-                .ThenBy(x => x.viewLength)
+                .ThenBy(x => x.viewportOriginY)
+                .ThenBy(x => x.viewportOriginX)
+                //.ThenBy(x => x.viewLength)
                 .ToList();
 
             #endregion
@@ -206,6 +214,13 @@ namespace rjc.GeneralNotesAutomation
 
             #region transaction to delete viewports and then recreate viewport
 
+            double boundingBoxBorder = 0.01; //in feet
+            double typicalNoteWidth = unitConversion.mmToFt(160); //in feet
+
+            XYZ protoOrigin = new XYZ(topRightWorkingArea.X - typicalNoteWidth / 2, topRightWorkingArea.Y, 0);
+            XYZ workingOrigin = protoOrigin;
+            XYZ nextOrigin = protoOrigin;
+
             Transaction transaction = new Transaction(doc);
             TransactionGroup transactionGroup = new TransactionGroup(doc);
 
@@ -226,12 +241,61 @@ namespace rjc.GeneralNotesAutomation
             }
 
             int currentSheetIndex = 0;
-            foreach(var vd in viewData)
-            {
-                ElementId sheetElementId = sheetData[currentSheetIndex].SheetId;
-                Viewport.Create(doc, sheetElementId, vd.viewElementId, workingOrigin);
-            }
+            int currentColumn = 1;
+            int currentViewIndex = 0;
+            int checkIndex = 0;
+            int nextViewIndex = currentViewIndex + 1;
 
+            //calculate max number of columns
+            double workingAreaWidth = topRightWorkingArea.X - bottomLeftWorkingArea.X;
+            int maxNumberOfColumns = Convert.ToInt32(Math.Floor(workingAreaWidth / typicalNoteWidth)) + 1;
+
+            ElementId viewElementIdToPlace = null;
+            ElementId currentSheetElementId = sheetData[currentSheetIndex].SheetId;
+            double currentViewLength = 0;
+            
+            //try for loop
+            for(currentViewIndex=0; currentViewIndex<viewData.Count; currentViewIndex++)
+            {
+                checkIndex = currentViewIndex;
+
+                if (nextOrigin.Y - viewData[currentViewIndex].viewLength > bottomLeftWorkingArea.Y)
+                {
+                    viewElementIdToPlace = viewData[currentViewIndex].viewElementId;
+                    currentViewLength = viewData[currentViewIndex].viewLength;
+                }
+
+                else
+                {
+                    while (nextOrigin.Y - viewData[checkIndex].viewLength < bottomLeftWorkingArea.Y)
+                    {
+                        if (checkIndex == (viewData.Count-1))
+                        {
+                            break;
+                        }
+
+                        checkIndex++;
+                        
+
+                    }
+
+                    nextOrigin = new XYZ(nextOrigin.X - (currentColumn * typicalNoteWidth), protoOrigin.Y, 0);
+
+
+                    viewElementIdToPlace = viewData[checkIndex].viewElementId;
+                    currentViewLength = viewData[checkIndex].viewLength;
+                    viewData.RemoveAt(checkIndex);
+                }
+
+                XYZ placementPoint = new XYZ(nextOrigin.X, (nextOrigin.Y) - (currentViewLength / 2), 0);
+                transaction.Start("Place Viewport");
+                Viewport.Create(doc, currentSheetElementId, viewElementIdToPlace, placementPoint);
+                transaction.Commit();
+
+                nextOrigin = new XYZ(placementPoint.X, (placementPoint.Y) - (currentViewLength / 2), 0);
+
+            }
+            
             transactionGroup.Commit();
 
             #endregion

@@ -18,10 +18,12 @@ namespace rjc.GeneralNotesAutomation
 
         public string viewName { get; set; }
 
-        public XYZ viewportOrigin { get; set; }
+        public double viewportOriginX { get; set; }
+
+        public double viewportOriginY { get; set; }
 
         public string sheetNumber { get; set; }
 
-        //public bool onSheet { get; set; }
+        public bool canPlaceOnSheet { get; set; }
     }
 }
