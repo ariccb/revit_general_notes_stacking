@@ -35,10 +35,12 @@ namespace rjc.GeneralNotesAutomation
         {
             PushButtonData insertGeneralNotesData = new PushButtonData("InsertGeneralNotes", "Insert General\nNotes", Path.Combine(AssemblyDirectory, "GeneralNotesAutomation.dll"),"rjc.GeneralNotesAutomation.InsertGeneralNotes");
             PushButtonData stackGeneralNotesData = new PushButtonData("StackGeneralNotes", "Stack General\nNotes", Path.Combine(AssemblyDirectory, "GeneralNotesAutomation.dll"), "rjc.GeneralNotesAutomation.StackGeneralNotes");
+            PushButtonData formatGeneralNotesData = new PushButtonData("FormatGeneralNote", "Format", Path.Combine(AssemblyDirectory, "GeneralNotesAutomation.dll"), "rjc.GeneralNotesAutomation.FormatGeneralNote");
 
             //PushButtonData createBeamScheduleData = new PushButtonData("InsertFamilyInDraftingView", "Create Beam\nSchedule", @"C:\Program Files\RJC Beam Schedule Tools\Revit 2019\CreateBeamSchedule.dll", "CreateBeamSchedule.InsertFamilyInDraftingView");
             PushButton insertGeneralNotesButton = panel.AddItem(insertGeneralNotesData) as PushButton;
             PushButton stackGeneralNotesButton = panel.AddItem(stackGeneralNotesData) as PushButton;
+            PushButton formatGeneralNotesButton = panel.AddItem(formatGeneralNotesData) as PushButton;
             /*
             // Set ToolTip and contextual help
             pushButton.ToolTip = "Say Hello World";
@@ -50,7 +52,7 @@ namespace rjc.GeneralNotesAutomation
             //Executing Assembly Directory
             insertGeneralNotesButton.LargeImage = new System.Windows.Media.Imaging.BitmapImage(new Uri(Path.Combine(AssemblyDirectory, @"Graphics\revitInsertGeneralNotesButton.png")));
             stackGeneralNotesButton.LargeImage = new System.Windows.Media.Imaging.BitmapImage(new Uri(Path.Combine(AssemblyDirectory, @"Graphics\revitInsertGeneralNotesButton.png")));
-
+            formatGeneralNotesButton.LargeImage = new System.Windows.Media.Imaging.BitmapImage(new Uri(Path.Combine(AssemblyDirectory, @"Graphics\revitInsertGeneralNotesButton.png")));
 
             //Debug Version
             //createBeamSchedule.LargeImage = new System.Windows.Media.Imaging.BitmapImage(new Uri(@"C:\Users\cfebbraro\Documents\rjcDev\rjcRevitSchedules\CreateBeamSchedule\bin\Debug 2017\revitCreateBeamScheduleButton.png"));

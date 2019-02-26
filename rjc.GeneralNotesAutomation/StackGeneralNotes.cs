@@ -27,6 +27,7 @@ namespace rjc.GeneralNotesAutomation
             UtilityClasses.Vectors vectorUtilities = new UtilityClasses.Vectors();
             UtilityClasses.Views viewUtilities = new UtilityClasses.Views();
             UtilityClasses.UnitConversion unitConversion = new UtilityClasses.UnitConversion();
+            FormatGeneralNote formatGeneralNote = new FormatGeneralNote();
 
             #region  prompt user to select new working origin
             XYZ topRightWorkingArea = uiDoc.Selection.PickPoint("Select Top Right Of Working Area");
@@ -65,20 +66,16 @@ namespace rjc.GeneralNotesAutomation
 
             #region get drafting views on sheet
             //this collects the viewports which have been placed on sheets that are called or contain general notes
-            FilteredElementCollector draftingViews = new FilteredElementCollector(doc);
-            FilteredElementCollector generalNotesViewports = new FilteredElementCollector(doc);
-            ParameterValueProvider parameterViewportSheetNameProvider = new ParameterValueProvider(new ElementId((int)BuiltInParameter.VIEWPORT_SHEET_NAME));
-            FilterStringRuleEvaluator sheetNameContainsEvaluator = new FilterStringContains();
-            FilterStringRule filterViewportSheetNameStringRule = new FilterStringRule(parameterViewportSheetNameProvider, sheetNameContainsEvaluator, "General Notes", false);
-            ElementParameterFilter viewportSheetNameParameterFilter = new ElementParameterFilter(filterViewportSheetNameStringRule);
-            //collects viewports that are on sheets called "general notes"
-            generalNotesViewports.OfCategory(BuiltInCategory.OST_Viewports).WherePasses(viewportSheetNameParameterFilter);
+
+            FilteredElementCollector generalNotesViewports = CollectGeneralNotesViewports(doc);
+
             #endregion
 
             #region get sheets called general notes
             //this collects the sheets that are called "general notes"
             FilteredElementCollector generalNotesSheets = new FilteredElementCollector(doc);
             ParameterValueProvider parameterSheetNameProvider = new ParameterValueProvider(new ElementId((int)BuiltInParameter.SHEET_NAME));
+            FilterStringRuleEvaluator sheetNameContainsEvaluator = new FilterStringContains();
             FilterStringRule filterSheetNameStringRule = new FilterStringRule(parameterSheetNameProvider, sheetNameContainsEvaluator, "General Notes", false);
             ElementParameterFilter sheetNameParameterFilter = new ElementParameterFilter(filterSheetNameStringRule);
             //collects sheets that are called "general notes"
@@ -122,41 +119,14 @@ namespace rjc.GeneralNotesAutomation
                 UV topLeftPoint = new UV(outline.Min.U, outline.Max.V);
                 UV bottomRightPoint = new UV(outline.Max.U, outline.Min.V);
 
-                Outline sheetOutline = v.GetBoxOutline();
+                //Outline sheetOutline = v.GetBoxOutline();
+
+                BoundingBoxXYZ boundingBoxXYZ = formatGeneralNote.generalNoteBoundingBox(doc, associatedView);
+
                 
-                double viewLength = topRightPoint.V - bottomRightPoint.V;
+                double scale = (double)1 / associatedView.Scale;
+                double viewLength = (boundingBoxXYZ.Max.Y - boundingBoxXYZ.Min.Y) * scale;
                 ViewSheet viewSheet = doc.GetElement(v.SheetId) as ViewSheet;
-
-                /*
-                FilteredElementCollector BK90Elements = new FilteredElementCollector(doc, viewElementId);
-
-                ParameterValueProvider GraphicStyleProvider = new ParameterValueProvider(new ElementId((int)BuiltInParameter.BUILDING_CURVE_GSTYLE));
-                FilterStringRuleEvaluator BK90Evaluator = new FilterStringContains();
-                FilterStringRule BK90FilterRule = new FilterStringRule(GraphicStyleProvider, BK90Evaluator, "S-ANNO-BK90", false);
-                ElementParameterFilter BK90ElementParameterFilter = new ElementParameterFilter(BK90FilterRule);
-                BK90Elements.OfCategory(BuiltInCategory.OST_Lines).WherePasses(BK90ElementParameterFilter);
-
-                List<XYZ> BK90PointList = new List<XYZ>();
-                foreach (Element e in BK90Elements)
-                {
-                    DetailCurve detailCurve = e as DetailLine;
-                    XYZ startPoint = detailCurve.GeometryCurve.GetEndPoint(0);
-                    XYZ endPoint = detailCurve.GeometryCurve.GetEndPoint(1);
-                    BK90PointList.Add(startPoint);
-                    BK90PointList.Add(endPoint);
-                }
-
-                //BK90PointList now contains all the points in the view
-                //need to find point with maximum x and y values, and point with min x and y values
-                double maxX = BK90PointList.Max(point => point.X);
-                double maxY = BK90PointList.Max(point => point.Y);
-                double minX = BK90PointList.Min(point => point.X);
-                double minY = BK90PointList.Min(point => point.Y);
-                
-
-                //create bounding box
-                BoundingBoxUV BK90BoundingBoxUV = new BoundingBoxUV(minX, minY, maxX, maxY);
-                */
 
                 //Add ViewData
                 //ViewData item containing elementID, view name, and view length
@@ -167,8 +137,8 @@ namespace rjc.GeneralNotesAutomation
                     viewLength = viewLength,
                     //viewportElementId = viewportElementId,
                     sheetNumber = viewSheet.SheetNumber,
-                    viewportOriginX = sheetOutline.MaximumPoint.X,
-                    viewportOriginY = sheetOutline.MaximumPoint.Y,
+                    viewportOriginX = boundingBoxXYZ.Max.X * scale,
+                    viewportOriginY = boundingBoxXYZ.Min.Y * scale,
                     canPlaceOnSheet = true
                 });
             }
@@ -212,12 +182,16 @@ namespace rjc.GeneralNotesAutomation
 
             //viewData.Distinct() to remove duplicate items from list.
 
+            //move general notes view to each view origin.
+            //moves top right corner of note box to view origin (0,0,0)
+            formatGeneralNote.MoveNoteToViewOrigin(doc);
+
             #region transaction to delete viewports and then recreate viewport
 
             double boundingBoxBorder = 0.01; //in feet
             double typicalNoteWidth = unitConversion.mmToFt(160); //in feet
 
-            XYZ protoOrigin = new XYZ(topRightWorkingArea.X - typicalNoteWidth / 2, topRightWorkingArea.Y, 0);
+            XYZ protoOrigin = new XYZ(topRightWorkingArea.X - (typicalNoteWidth / 2), topRightWorkingArea.Y, 0);
             XYZ workingOrigin = protoOrigin;
             XYZ nextOrigin = protoOrigin;
 
@@ -245,6 +219,7 @@ namespace rjc.GeneralNotesAutomation
             int currentViewIndex = 0;
             int checkIndex = 0;
             int nextViewIndex = currentViewIndex + 1;
+            bool newColumnStarted = false;
 
             //calculate max number of columns
             double workingAreaWidth = topRightWorkingArea.X - bottomLeftWorkingArea.X;
@@ -263,6 +238,13 @@ namespace rjc.GeneralNotesAutomation
                 {
                     viewElementIdToPlace = viewData[currentViewIndex].viewElementId;
                     currentViewLength = viewData[currentViewIndex].viewLength;
+
+                    if (currentViewIndex == 0)
+                    {
+                        newColumnStarted = true;
+                    }
+
+                    else { newColumnStarted = false; }
                 }
 
                 else
@@ -279,17 +261,37 @@ namespace rjc.GeneralNotesAutomation
 
                     }
 
-                    nextOrigin = new XYZ(nextOrigin.X - (currentColumn * typicalNoteWidth), protoOrigin.Y, 0);
+                    nextOrigin = new XYZ(nextOrigin.X - (typicalNoteWidth), protoOrigin.Y, 0);
+                    newColumnStarted = true;
 
-
+                    
                     viewElementIdToPlace = viewData[checkIndex].viewElementId;
                     currentViewLength = viewData[checkIndex].viewLength;
                     viewData.RemoveAt(checkIndex);
                 }
 
-                XYZ placementPoint = new XYZ(nextOrigin.X, (nextOrigin.Y) - (currentViewLength / 2), 0);
+                View view = doc.GetElement(viewElementIdToPlace) as View;
+                BoundingBoxUV actualBoundingBoxUV = view.Outline;
+                BoundingBoxXYZ desiredBoundingBox = formatGeneralNote.generalNoteBoundingBox(doc, view);
+                double dTop = actualBoundingBoxUV.Max.V - desiredBoundingBox.Max.Y*((double)1/view.Scale);
+                double dBottom = actualBoundingBoxUV.Min.V - desiredBoundingBox.Min.Y*((double)1/view.Scale);
+                double dModifier = 0;
+
+                if(newColumnStarted)
+                {
+                    dModifier = ((dTop - dBottom) / 2);
+                }
+
+                XYZ placementPoint = new XYZ(nextOrigin.X, (nextOrigin.Y) - (currentViewLength / 2) + dModifier, 0);
                 transaction.Start("Place Viewport");
                 Viewport.Create(doc, currentSheetElementId, viewElementIdToPlace, placementPoint);
+                transaction.Commit();
+
+                transaction.Start("Change Type");
+
+                List<ElementId> elementIds = new List<ElementId>(CollectGeneralNotesViewports(doc).ToElementIds());
+                Element.ChangeTypeId(doc,elementIds, typeId);
+
                 transaction.Commit();
 
                 nextOrigin = new XYZ(placementPoint.X, (placementPoint.Y) - (currentViewLength / 2), 0);
@@ -353,5 +355,22 @@ namespace rjc.GeneralNotesAutomation
 
             return Result.Succeeded;
         }
+
+        public FilteredElementCollector CollectGeneralNotesViewports(Document doc)
+        {
+            //this collects the viewports which have been placed on sheets that are called or contain general notes
+
+            FilteredElementCollector generalNotesViewports = new FilteredElementCollector(doc);
+            ParameterValueProvider parameterViewportSheetNameProvider = new ParameterValueProvider(new ElementId((int)BuiltInParameter.VIEWPORT_SHEET_NAME));
+            FilterStringRuleEvaluator sheetNameContainsEvaluator = new FilterStringContains();
+            FilterStringRule filterViewportSheetNameStringRule = new FilterStringRule(parameterViewportSheetNameProvider, sheetNameContainsEvaluator, "General Notes", false);
+            ElementParameterFilter viewportSheetNameParameterFilter = new ElementParameterFilter(filterViewportSheetNameStringRule);
+            //collects viewports that are on sheets called "general notes"
+            generalNotesViewports.OfCategory(BuiltInCategory.OST_Viewports).WherePasses(viewportSheetNameParameterFilter);
+
+            return generalNotesViewports;
+        }
+
+        
     }
 }
