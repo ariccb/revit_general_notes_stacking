@@ -36,6 +36,11 @@ namespace rjc.GeneralNotesAutomation
             generalNotesViewports.OfCategory(BuiltInCategory.OST_Viewports).WherePasses(viewportSheetNameParameterFilter);
 
             List<View> generalNotesViews = new List<View>();
+            Transaction transaction = new Transaction(doc);
+            TransactionGroup transactionGroup = new TransactionGroup(doc);
+
+            transactionGroup.Start("Format Notes");
+
             foreach (Viewport v in generalNotesViewports)
             {
                 try
@@ -54,7 +59,7 @@ namespace rjc.GeneralNotesAutomation
 
                     XYZ moveVector = vectorUtilities.TwoPointVector(boundingBoxXYZ.Max, new XYZ());
 
-                    Transaction transaction = new Transaction(doc);
+
                     transaction.Start("Format Note");
 
                     group = doc.Create.NewGroup(allElementsInView.ToElementIds());
@@ -73,6 +78,8 @@ namespace rjc.GeneralNotesAutomation
 
                 catch { }
             }
+
+            transactionGroup.Assimilate();
         }
 
         public BoundingBoxXYZ generalNoteBoundingBox(Autodesk.Revit.DB.Document doc, View view)
@@ -110,6 +117,44 @@ namespace rjc.GeneralNotesAutomation
             boundingBoxXYZ.Min = new XYZ(minX, minY, 0);
 
             return boundingBoxXYZ;
+
+        }
+
+        public Outline generalNoteOutline(Autodesk.Revit.DB.Document doc, View view)
+        {
+            FilteredElementCollector BK90ElementsCollector = new FilteredElementCollector(doc, view.Id);
+
+            ParameterValueProvider GraphicStyleProvider = new ParameterValueProvider(new ElementId((int)BuiltInParameter.BUILDING_CURVE_GSTYLE));
+            FilterStringRuleEvaluator BK90Evaluator = new FilterStringContains();
+            FilterStringRule BK90FilterRule = new FilterStringRule(GraphicStyleProvider, BK90Evaluator, "S-ANNO-BK90", false);
+            ElementParameterFilter BK90ElementParameterFilter = new ElementParameterFilter(BK90FilterRule);
+            BK90ElementsCollector.OfCategory(BuiltInCategory.OST_Lines).WherePasses(BK90ElementParameterFilter);
+
+            List<XYZ> BK90PointList = new List<XYZ>();
+
+            foreach (DetailLine d in BK90ElementsCollector)
+            {
+                DetailCurve detailCurve = d as DetailCurve;
+                XYZ startPoint = detailCurve.GeometryCurve.GetEndPoint(0);
+                XYZ endPoint = detailCurve.GeometryCurve.GetEndPoint(1);
+                BK90PointList.Add(startPoint);
+                BK90PointList.Add(endPoint);
+            }
+
+            //BK90PointList now contains all the points in the view
+            //need to find point with maximum x and y values, and point with min x and y values
+            double maxX = BK90PointList.Max(point => point.X);
+            double maxY = BK90PointList.Max(point => point.Y);
+            double minX = BK90PointList.Min(point => point.X);
+            double minY = BK90PointList.Min(point => point.Y);
+
+
+            //create bounding box
+            XYZ maximumPoint = new XYZ(maxX, maxY, 0);
+            XYZ minimumPoint = new XYZ(minX, minY, 0);
+            Outline outline = new Outline(minimumPoint,maximumPoint);
+
+            return outline;
 
         }
 

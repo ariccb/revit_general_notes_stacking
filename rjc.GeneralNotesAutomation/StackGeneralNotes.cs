@@ -18,8 +18,10 @@ namespace rjc.GeneralNotesAutomation
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
+            #region initialization
             //get active view as view
-            UIDocument uiDoc = commandData.Application.ActiveUIDocument;
+            UIApplication uiApp = commandData.Application;
+            UIDocument uiDoc = uiApp.ActiveUIDocument;
             Document doc = uiDoc.Document;
             View currentView = uiDoc.ActiveView;
 
@@ -29,39 +31,6 @@ namespace rjc.GeneralNotesAutomation
             UtilityClasses.UnitConversion unitConversion = new UtilityClasses.UnitConversion();
             FormatGeneralNote formatGeneralNote = new FormatGeneralNote();
 
-            #region  prompt user to select new working origin
-            XYZ topRightWorkingArea = uiDoc.Selection.PickPoint("Select Top Right Of Working Area");
-            XYZ bottomLeftWorkingArea = uiDoc.Selection.PickPoint("Select Bottom Left Of Working Area");
-            //PickedBox pickedBox = uiDoc.Selection.PickBox(PickBoxStyle.Enclosing, "Select Working Sheet Area");
-    
-            #endregion
-        
-            #region get bounds of sheet view title block DEPRECATED
-            /*
-            FilteredElementCollector currentTitleBlockCollector = new FilteredElementCollector(doc);
-            currentTitleBlockCollector
-                .OfClass(typeof(FamilyInstance))
-                .OfCategory(BuiltInCategory.OST_TitleBlocks)
-                .OwnedByView(currentView.Id);
-
-            Element currentTitleBlock = currentTitleBlockCollector.FirstElement();
-            BoundingBoxXYZ currentTitleBlockBounds = currentTitleBlock.get_BoundingBox(currentView);
-            double workingOriginX = workingOrigin.X;
-            double workingOriginY = workingOrigin.Y;
-            double workingOriginZ = workingOrigin.Z;
-
-            double titleBlockWidth = currentTitleBlockBounds.Max.X - currentTitleBlockBounds.Min.X;
-            double titleBlockHeight = currentTitleBlockBounds.Max.Y - currentTitleBlockBounds.Min.Y;
-            double rightBorderWidth = currentTitleBlockBounds.Max.X - workingOriginX;
-            double topBorderWidth = currentTitleBlockBounds.Max.Y - workingOriginY;
-            double bottomBorderWidth = topBorderWidth; //assumed for calc
-            double leftBorderWidth = topBorderWidth; //assumed calc
-            double sheetWorkingWidth = titleBlockWidth - rightBorderWidth - leftBorderWidth; //assumed calc
-            double sheetWorkingHeight = (currentTitleBlockBounds.Max.Y - currentTitleBlockBounds.Min.Y) - topBorderWidth - bottomBorderWidth; //assumed calc
-
-            double generalNoteWidth = unitConversion.mmToFt(160);
-            int maxNumberOfColumns = Convert.ToInt32(Math.Floor(sheetWorkingWidth / generalNoteWidth))+1;
-            */
             #endregion
 
             #region get drafting views on sheet
@@ -98,6 +67,21 @@ namespace rjc.GeneralNotesAutomation
             sheetData = sheetData.OrderBy(x => x.SheetNumber).ToList();
             #endregion
 
+            #region get titleblocks on sheets called general notes
+
+            //this collects the sheets that are called "general notes"
+            FilteredElementCollector gnTitleblocks = new FilteredElementCollector(doc);
+            ParameterValueProvider parameterGnTitleblockProvider = new ParameterValueProvider(new ElementId((int)BuiltInParameter.SHEET_NAME));
+            FilterStringRuleEvaluator gnTitleblockContainsEvaluator = new FilterStringContains();
+            FilterStringRule filterGnTitleblockStringRule = new FilterStringRule(parameterSheetNameProvider, sheetNameContainsEvaluator, "General Notes", false);
+            ElementParameterFilter gnTitleblockParameterFilter = new ElementParameterFilter(filterSheetNameStringRule);
+            //collects sheets that are called "general notes"
+            gnTitleblocks.OfCategory(BuiltInCategory.OST_TitleBlocks).WherePasses(sheetNameParameterFilter);
+
+            #endregion
+
+
+
             #region collect view data
 
             //create instance of view data list
@@ -111,6 +95,7 @@ namespace rjc.GeneralNotesAutomation
                 View associatedView = doc.GetElement(v.ViewId) as View;
                 
                 
+                
                 //get vertical length of note
                 BoundingBoxUV outline = associatedView.Outline;
 
@@ -119,7 +104,8 @@ namespace rjc.GeneralNotesAutomation
                 UV topLeftPoint = new UV(outline.Min.U, outline.Max.V);
                 UV bottomRightPoint = new UV(outline.Max.U, outline.Min.V);
 
-                //Outline sheetOutline = v.GetBoxOutline();
+                Outline viewportOutline = v.GetBoxOutline();
+                
 
                 BoundingBoxXYZ boundingBoxXYZ = formatGeneralNote.generalNoteBoundingBox(doc, associatedView);
 
@@ -139,14 +125,16 @@ namespace rjc.GeneralNotesAutomation
                     sheetNumber = viewSheet.SheetNumber,
                     viewportOriginX = boundingBoxXYZ.Max.X * scale,
                     viewportOriginY = boundingBoxXYZ.Min.Y * scale,
-                    canPlaceOnSheet = true
+                    canPlaceOnSheet = true,
+                    viewportOutline = viewportOutline
+                    
                 });
             }
 
             viewData = viewData
                 .OrderBy(x => x.sheetNumber)
-                .ThenBy(x => x.viewportOriginY)
-                .ThenBy(x => x.viewportOriginX)
+                .ThenByDescending(x => x.viewportOriginX)
+                .ThenByDescending(x => x.viewportOriginY)
                 //.ThenBy(x => x.viewLength)
                 .ToList();
 
@@ -184,22 +172,32 @@ namespace rjc.GeneralNotesAutomation
 
             //move general notes view to each view origin.
             //moves top right corner of note box to view origin (0,0,0)
+
             formatGeneralNote.MoveNoteToViewOrigin(doc);
-
-            #region transaction to delete viewports and then recreate viewport
-
-            double boundingBoxBorder = 0.01; //in feet
-            double typicalNoteWidth = unitConversion.mmToFt(160); //in feet
-
-            XYZ protoOrigin = new XYZ(topRightWorkingArea.X - (typicalNoteWidth / 2), topRightWorkingArea.Y, 0);
-            XYZ workingOrigin = protoOrigin;
-            XYZ nextOrigin = protoOrigin;
 
             Transaction transaction = new Transaction(doc);
             TransactionGroup transactionGroup = new TransactionGroup(doc);
 
-            transactionGroup.Start("Stack Drafting Views");
+            #region transaction to reposition titleblocks and delete viewports
+
+            //double boundingBoxBorder = 0.01; //in feet
+            double typicalNoteWidth = unitConversion.mmToFt(160); //in feet
+
             //remove viewports from sheets so they can be placed fresh
+            transactionGroup.Start("Delete Viewports");
+
+            //reposition general notes title blocks
+            foreach (Element e in gnTitleblocks)
+            {
+                ViewSheet viewSheet = doc.GetElement(e.OwnerViewId) as ViewSheet;
+                BoundingBoxXYZ boundingBoxXYZ = e.get_BoundingBox(viewSheet);
+
+                transaction.Start("Reposition Titleblock");
+                ElementTransformUtils.MoveElement(doc, e.Id, vectorUtilities.TwoPointVector(boundingBoxXYZ.Min, viewSheet.Origin));
+                transaction.Commit();
+            }
+
+            //collect viewport ids and delete viewports
             foreach (ViewSheet vs in generalNotesSheets)
             {
                 List<ElementId> viewPortIds = new List<ElementId>(vs.GetAllViewports());
@@ -214,144 +212,120 @@ namespace rjc.GeneralNotesAutomation
 
             }
 
+            transactionGroup.Assimilate();
+
+            #endregion
+
+            //prompt user to select new working origin
+            uiDoc.ActiveView = doc.GetElement(sheetData[0].SheetId) as ViewSheet;
+            XYZ topRightWorkingArea = uiDoc.Selection.PickPoint("Select Top Right Of Working Area");
+            XYZ bottomLeftWorkingArea = uiDoc.Selection.PickPoint("Select Bottom Left Of Working Area");
+
+            BoundingBoxXYZ workingAreaBoundingBox = new BoundingBoxXYZ();
+            workingAreaBoundingBox.Max = topRightWorkingArea;
+            workingAreaBoundingBox.Min = bottomLeftWorkingArea;
+
+            //PickedBox pickedBox = uiDoc.Selection.PickBox(PickBoxStyle.Enclosing, "Select Working Sheet Area");
+
+            XYZ protoOrigin = new XYZ(topRightWorkingArea.X - (typicalNoteWidth / 2), topRightWorkingArea.Y, 0);
+            XYZ workingOrigin = protoOrigin;
+            XYZ origin = protoOrigin;
+
+            transactionGroup.Start("Stack Drafting Views");
+
             int currentSheetIndex = 0;
-            int currentColumn = 1;
+            int currentColumn = 0;
             int currentViewIndex = 0;
-            int checkIndex = 0;
+            int currentIteration = 0;
+            int indexToPlace = 0;
             int nextViewIndex = currentViewIndex + 1;
             bool newColumnStarted = false;
+            int viewIndex = 0;
 
             //calculate max number of columns
             double workingAreaWidth = topRightWorkingArea.X - bottomLeftWorkingArea.X;
+            
             int maxNumberOfColumns = Convert.ToInt32(Math.Floor(workingAreaWidth / typicalNoteWidth)) + 1;
 
             ElementId viewElementIdToPlace = null;
             ElementId currentSheetElementId = sheetData[currentSheetIndex].SheetId;
             double currentViewLength = 0;
-            
+            int numberOfViewsToPlace = viewData.Count;
+
+
             //try for loop
-            for(currentViewIndex=0; currentViewIndex<viewData.Count; currentViewIndex++)
+            //this loop will try to select the index of the view to place next.
+            for(currentIteration=0; currentIteration<numberOfViewsToPlace; currentIteration++)
             {
-                checkIndex = currentViewIndex;
+                newColumnStarted = false;
+                viewElementIdToPlace = null;
+                viewIndex = 0;
 
-                if (nextOrigin.Y - viewData[currentViewIndex].viewLength > bottomLeftWorkingArea.Y)
+                if(numberOfViewsToPlace==viewData.Count)
                 {
-                    viewElementIdToPlace = viewData[currentViewIndex].viewElementId;
-                    currentViewLength = viewData[currentViewIndex].viewLength;
+                    newColumnStarted = true;
+                }
 
-                    if (currentViewIndex == 0)
-                    {
-                        newColumnStarted = true;
-                    }
-
-                    else { newColumnStarted = false; }
+                if ((origin.Y - viewData[viewIndex].viewLength) > workingAreaBoundingBox.Min.Y)
+                {
+                    viewElementIdToPlace = viewData[viewIndex].viewElementId;
+                    currentViewLength = viewData[viewIndex].viewLength;
+                    viewData.RemoveAt(viewIndex);
                 }
 
                 else
                 {
-                    while (nextOrigin.Y - viewData[checkIndex].viewLength < bottomLeftWorkingArea.Y)
+                    while ((origin.Y - viewData[viewIndex].viewLength) < workingAreaBoundingBox.Min.Y)
                     {
-                        if (checkIndex == (viewData.Count-1))
+                        viewIndex++;
+
+                        //what to do if the conditions are never met
+                        if(viewIndex == viewData.Count)
                         {
+                            currentColumn++;
+                            newColumnStarted = true;
+                            viewIndex = 0;
+                            origin = protoOrigin;
                             break;
                         }
-
-                        checkIndex++;
-                        
-
                     }
 
-                    nextOrigin = new XYZ(nextOrigin.X - (typicalNoteWidth), protoOrigin.Y, 0);
-                    newColumnStarted = true;
-
-                    
-                    viewElementIdToPlace = viewData[checkIndex].viewElementId;
-                    currentViewLength = viewData[checkIndex].viewLength;
-                    viewData.RemoveAt(checkIndex);
+                    viewElementIdToPlace = viewData[viewIndex].viewElementId;
+                    currentViewLength = viewData[viewIndex].viewLength;
+                    viewData.RemoveAt(viewIndex);
                 }
 
                 View view = doc.GetElement(viewElementIdToPlace) as View;
                 BoundingBoxUV actualBoundingBoxUV = view.Outline;
                 BoundingBoxXYZ desiredBoundingBox = formatGeneralNote.generalNoteBoundingBox(doc, view);
                 double dTop = actualBoundingBoxUV.Max.V - desiredBoundingBox.Max.Y*((double)1/view.Scale);
-                double dBottom = actualBoundingBoxUV.Min.V - desiredBoundingBox.Min.Y*((double)1/view.Scale);
-                double dModifier = 0;
+                double dBottom = desiredBoundingBox.Min.Y * ((double)1 / view.Scale) - actualBoundingBoxUV.Min.V;
+                double dModifierY = ((dTop - dBottom) / 2);
 
-                if(newColumnStarted)
-                {
-                    dModifier = ((dTop - dBottom) / 2);
-                }
+                double dRight = actualBoundingBoxUV.Max.U - desiredBoundingBox.Max.X * ((double)1 / view.Scale);
+                double dLeft = desiredBoundingBox.Min.X * ((double)1 / view.Scale) - actualBoundingBoxUV.Min.U;
+                double dModifierX = ((dRight - dLeft) / 2);
 
-                XYZ placementPoint = new XYZ(nextOrigin.X, (nextOrigin.Y) - (currentViewLength / 2) + dModifier, 0);
+                XYZ placementPoint = new XYZ(protoOrigin.X-(currentColumn*typicalNoteWidth), (origin.Y) - (currentViewLength / 2), 0);
+                XYZ modifiedPlacementPoint = new XYZ(protoOrigin.X - (currentColumn * typicalNoteWidth)+dModifierX, (origin.Y) - (currentViewLength / 2) + dModifierY, 0);
+
                 transaction.Start("Place Viewport");
-                Viewport.Create(doc, currentSheetElementId, viewElementIdToPlace, placementPoint);
+                Viewport.Create(doc, currentSheetElementId, viewElementIdToPlace, modifiedPlacementPoint);
                 transaction.Commit();
 
-                transaction.Start("Change Type");
-
-                List<ElementId> elementIds = new List<ElementId>(CollectGeneralNotesViewports(doc).ToElementIds());
-                Element.ChangeTypeId(doc,elementIds, typeId);
-
-                transaction.Commit();
-
-                nextOrigin = new XYZ(placementPoint.X, (placementPoint.Y) - (currentViewLength / 2), 0);
+                origin = new XYZ(placementPoint.X, (placementPoint.Y) - (currentViewLength / 2), 0);
 
             }
-            
-            transactionGroup.Commit();
 
-            #endregion
+            transaction.Start("Change Type");
 
-            /*
-            transaction.Start("Move Drafting View");
-
-            List<ElementId> draftingViewElementIds = new List<ElementId>();
-            foreach (var vd in viewData)
-            {
-                draftingViewElementIds.Add(vd.viewElementId);
-                View view = doc.GetElement(vd.viewElementId) as View;
-            }
-            Element.ChangeTypeId(doc, draftingViewElementIds, typeId);
-
-            int currentColumn = 0;
-
-
-            foreach (ElementId e in draftingViewElementIds)
-            {
-                Viewport vp = doc.GetElement(e) as Viewport;
-
-                ElementId associateViewId = vp.ViewId;
-                View associatedView = doc.GetElement(associateViewId) as View;
-
-                string viewTitle = associatedView.Name.ToString();
-
-                
-                BoundingBoxUV associatedViewBoundUV = associatedView.Outline;
-                GeometryElement geometryElement = vp.get_Geometry(new Options());
-
-                Outline outline = vp.GetBoxOutline();
-
-                //Working points of bounding box
-                XYZ topRightPoint = new XYZ(outline.MaximumPoint.X - BoundingBoxBorder, outline.MaximumPoint.Y - BoundingBoxBorder, 0);
-                XYZ bottomLeftPoint = new XYZ(outline.MinimumPoint.X + BoundingBoxBorder, outline.MinimumPoint.Y + BoundingBoxBorder, 0);
-                XYZ topLeftPoint = new XYZ(outline.MinimumPoint.X + BoundingBoxBorder, outline.MaximumPoint.Y - BoundingBoxBorder, 0);
-                XYZ bottomRightPoint = new XYZ(outline.MaximumPoint.X - BoundingBoxBorder, outline.MinimumPoint.Y + BoundingBoxBorder, 0);
-
-                //calculate distance  and vector from top right corner of bouning box to clicked corner, this is first translation vector,
-                ElementTransformUtils.MoveElement(doc, e, vectorUtilities.TwoPointVector(topRightPoint, nextOrigin));
-
-                //get bounding box again to determine location of next origin point
-                outline = vp.GetBoxOutline();
-                nextOrigin = new XYZ(workingOriginX-(currentColumn*generalNoteWidth), outline.MinimumPoint.Y+BoundingBoxBorder, 0);
-            }
-            
+            List<ElementId> elementIds = new List<ElementId>(CollectGeneralNotesViewports(doc).ToElementIds());
+            Element.ChangeTypeId(doc, elementIds, typeId);
 
             transaction.Commit();
-            */
 
+            transactionGroup.Assimilate();
 
-            //iterate to next index. using bottom right corned of index-1 bounding box to find new top right of current index.
-            //calculate translation vector as before
 
             return Result.Succeeded;
         }
@@ -370,7 +344,6 @@ namespace rjc.GeneralNotesAutomation
 
             return generalNotesViewports;
         }
-
-        
+    
     }
 }

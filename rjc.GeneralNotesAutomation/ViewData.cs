@@ -25,5 +25,7 @@ namespace rjc.GeneralNotesAutomation
         public string sheetNumber { get; set; }
 
         public bool canPlaceOnSheet { get; set; }
+
+        public Outline viewportOutline { get; set; }
     }
 }
