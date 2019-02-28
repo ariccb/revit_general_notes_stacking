@@ -78,6 +78,9 @@
     <Content Include="Graphics\revitInsertGeneralNotesButton.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Graphics\revitStackGeneralNotesButton.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Release Manifest Files\GeneralNotesTools2017.addin">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

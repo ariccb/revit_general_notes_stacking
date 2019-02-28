@@ -27,5 +27,7 @@ namespace rjc.GeneralNotesAutomation
         public bool canPlaceOnSheet { get; set; }
 
         public Outline viewportOutline { get; set; }
+
+        public bool isHollowCoreNote { get; set; }
     }
 }

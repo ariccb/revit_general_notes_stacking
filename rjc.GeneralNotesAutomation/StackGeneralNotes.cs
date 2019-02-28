@@ -25,6 +25,10 @@ namespace rjc.GeneralNotesAutomation
             Document doc = uiDoc.Document;
             View currentView = uiDoc.ActiveView;
 
+            //instance transaction class
+            Transaction transaction = new Transaction(doc);
+            TransactionGroup transactionGroup = new TransactionGroup(doc);
+
             //initialize utility classes
             UtilityClasses.Vectors vectorUtilities = new UtilityClasses.Vectors();
             UtilityClasses.Views viewUtilities = new UtilityClasses.Views();
@@ -79,8 +83,6 @@ namespace rjc.GeneralNotesAutomation
             gnTitleblocks.OfCategory(BuiltInCategory.OST_TitleBlocks).WherePasses(sheetNameParameterFilter);
 
             #endregion
-
-
 
             #region collect view data
 
@@ -140,7 +142,7 @@ namespace rjc.GeneralNotesAutomation
 
             #endregion
 
-            #region collect views called "no title"
+            #region get view type id "no title"
 
             FilteredElementCollector viewTypeCollector = new FilteredElementCollector(doc);
 
@@ -151,32 +153,11 @@ namespace rjc.GeneralNotesAutomation
 
             #endregion
 
-            //OPTIMIZATION ALGORITHM
-            //get list of all ids for views identified as a general notes
-            //if note is on a sheet, remove it from the sheet. if not, do nothing
-            //using list of view IDs, calculate and create list of note lengths
-            //create new list of note length from smallest to largest
-            //synchronously sort list of note IDs
-            //Do this for all notes in project Identified as a General Note
-            //insert first note on sheet
-            //measure distance from bottom of note to bottom of sheet working area
-            //search through list of notes to find best fittng note without going over sheet working area
-            //if not view can be found, move over to new coloumn, repeat.
-            //repeat process until column maximum is reached.
-            //move to next sheet named "General Notes"
-            //if no sheet exists, create new sheet named "General Notes"
-
-            //for each drafting view get bounding box
-
-            //viewData.Distinct() to remove duplicate items from list.
-
-            //move general notes view to each view origin.
-            //moves top right corner of note box to view origin (0,0,0)
+            #region format general note views
 
             formatGeneralNote.MoveNoteToViewOrigin(doc);
 
-            Transaction transaction = new Transaction(doc);
-            TransactionGroup transactionGroup = new TransactionGroup(doc);
+            #endregion
 
             #region transaction to reposition titleblocks and delete viewports
 
@@ -216,6 +197,7 @@ namespace rjc.GeneralNotesAutomation
 
             #endregion
 
+            #region user point selection
             //prompt user to select new working origin
             uiDoc.ActiveView = doc.GetElement(sheetData[0].SheetId) as ViewSheet;
             XYZ topRightWorkingArea = uiDoc.Selection.PickPoint("Select Top Right Of Working Area");
@@ -230,7 +212,9 @@ namespace rjc.GeneralNotesAutomation
             XYZ protoOrigin = new XYZ(topRightWorkingArea.X - (typicalNoteWidth / 2), topRightWorkingArea.Y, 0);
             XYZ workingOrigin = protoOrigin;
             XYZ origin = protoOrigin;
+            #endregion
 
+            #region stack general notes
             transactionGroup.Start("Stack Drafting Views");
 
             int currentSheetIndex = 0;
@@ -245,7 +229,7 @@ namespace rjc.GeneralNotesAutomation
             //calculate max number of columns
             double workingAreaWidth = topRightWorkingArea.X - bottomLeftWorkingArea.X;
             
-            int maxNumberOfColumns = Convert.ToInt32(Math.Floor(workingAreaWidth / typicalNoteWidth)) + 1;
+            int maxNumberOfColumns = Convert.ToInt32(Math.Floor(workingAreaWidth / typicalNoteWidth))-1;
 
             ElementId viewElementIdToPlace = null;
             ElementId currentSheetElementId = sheetData[currentSheetIndex].SheetId;
@@ -283,6 +267,12 @@ namespace rjc.GeneralNotesAutomation
                         if(viewIndex == viewData.Count)
                         {
                             currentColumn++;
+                            if(currentColumn > maxNumberOfColumns)
+                            {
+                                currentSheetIndex++;
+                                currentColumn = 0;
+                            }
+
                             newColumnStarted = true;
                             viewIndex = 0;
                             origin = protoOrigin;
@@ -326,6 +316,7 @@ namespace rjc.GeneralNotesAutomation
 
             transactionGroup.Assimilate();
 
+            #endregion
 
             return Result.Succeeded;
         }

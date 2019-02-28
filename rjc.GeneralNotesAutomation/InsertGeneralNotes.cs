@@ -16,7 +16,7 @@ namespace rjc.GeneralNotesAutomation
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            TaskDialog.Show("Hello World", "THIS IS A TEST");
+            TaskDialog.Show("Oh Hi There","Hello! I see you've tried to use this buttton to insert general notes. This hasn't been developed yet, but it's coming! Just you wait, it's going to be marvelous.");
             return Result.Succeeded;
         }
     }
