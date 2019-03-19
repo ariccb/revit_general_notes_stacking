@@ -65,37 +65,16 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Debug Manifest Files\GeneralNotesTools2017.addin">
-      <SubType>Designer</SubType>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Debug Manifest Files\GeneralNotesTools2018.addin">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Debug Manifest Files\GeneralNotesTools2019.addin">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <Content Include="Graphics\revitInsertGeneralNotesButton.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Graphics\revitStackGeneralNotesButton.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Release Manifest Files\GeneralNotesTools2017.addin">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Release Manifest Files\GeneralNotesTools2018.addin">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Release Manifest Files\GeneralNotesTools2019.addin">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>cd OutDir
-copy "Debug Manifest Files\GeneralNotesTools2017.addin" "C:\ProgramData\Autodesk\Revit\Addins\2017"
-copy "Debug Manifest Files\GeneralNotesTools2018.addin" "C:\ProgramData\Autodesk\Revit\Addins\2018"
-copy "Debug Manifest Files\GeneralNotesTools2019.addin" "C:\ProgramData\Autodesk\Revit\Addins\2019"</PostBuildEvent>
+    <PostBuildEvent>
+    </PostBuildEvent>
   </PropertyGroup>
 </Project>

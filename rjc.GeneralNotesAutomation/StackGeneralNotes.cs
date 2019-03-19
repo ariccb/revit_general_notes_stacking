@@ -270,6 +270,7 @@ namespace rjc.GeneralNotesAutomation
                             if(currentColumn > maxNumberOfColumns)
                             {
                                 currentSheetIndex++;
+                                currentSheetElementId = sheetData[currentSheetIndex].SheetId;
                                 currentColumn = 0;
                             }
 

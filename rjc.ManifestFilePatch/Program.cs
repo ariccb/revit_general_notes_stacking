@@ -62,12 +62,6 @@ namespace rjc.ManifestFilePatch
             Console.WriteLine("Press Enter To Continue");
             Console.ReadKey();
 
-            //remove AutoPDF manifest File
-            //"C:\ProgramData\Autodesk\Revit\Addins\2018\RJC AutoPDF.addin"
-
-                //remove Beam Schedule Generator manifest file
-                //"C:\ProgramData\Autodesk\Revit\Addins\2018\BeamScheduleTools2018.addin"
-
         }
     }
 }

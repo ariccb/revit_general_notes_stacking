@@ -24,8 +24,8 @@ namespace rjc.GeneralNotesAutomation
 
         public Result OnStartup(UIControlledApplication application)
         {
-            application.CreateRibbonTab("RJC Toronto");
-            RibbonPanel BeamScheduleToolsPanel = application.CreateRibbonPanel("RJC Toronto","General Notes Tools");
+            //application.CreateRibbonTab("RJC");
+            RibbonPanel BeamScheduleToolsPanel = application.CreateRibbonPanel("RJC","General Notes Tools");
             AddPushButton(BeamScheduleToolsPanel);
 
             return Result.Succeeded;
