@@ -16,7 +16,6 @@ namespace rjc.GeneralNotesAutomation
     class FormatGeneralNote
     {
         //adding this line to test branches
-
         public void MoveNoteToViewOrigin(Autodesk.Revit.DB.Document doc)
         {
             //UIApplication uiApp = commandData.Application;
