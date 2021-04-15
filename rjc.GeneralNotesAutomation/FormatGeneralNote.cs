@@ -8,6 +8,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.Creation;
+using rjcUtilityClasses;
 
 namespace rjc.GeneralNotesAutomation
 {
@@ -21,9 +22,9 @@ namespace rjc.GeneralNotesAutomation
             //UIApplication uiApp = commandData.Application;
             //Autodesk.Revit.DB.Document doc = uiApp.ActiveUIDocument.Document;
 
-            UtilityClasses.Vectors vectorUtilities = new UtilityClasses.Vectors();
-            UtilityClasses.Views viewUtilities = new UtilityClasses.Views();
-            UtilityClasses.UnitConversion unitConversion = new UtilityClasses.UnitConversion();
+            rjcUtilityClasses.Vectors vectorUtilities = new rjcUtilityClasses.Vectors();
+            rjcUtilityClasses.Views viewUtilities = new rjcUtilityClasses.Views();
+            rjcUtilityClasses.UnitConversion unitConversion = new rjcUtilityClasses.UnitConversion();
 
 
             //this collects the viewports which have been placed on sheets that are called or contain general notes

@@ -30,9 +30,9 @@ namespace rjc.GeneralNotesAutomation
             TransactionGroup transactionGroup = new TransactionGroup(doc);
 
             //initialize utility classes
-            UtilityClasses.Vectors vectorUtilities = new UtilityClasses.Vectors();
-            UtilityClasses.Views viewUtilities = new UtilityClasses.Views();
-            UtilityClasses.UnitConversion unitConversion = new UtilityClasses.UnitConversion();
+            rjcUtilityClasses.Vectors vectorUtilities = new rjcUtilityClasses.Vectors();
+            rjcUtilityClasses.Views viewUtilities = new rjcUtilityClasses.Views();
+            rjcUtilityClasses.UnitConversion unitConversion = new rjcUtilityClasses.UnitConversion();
             FormatGeneralNote formatGeneralNote = new FormatGeneralNote();
 
             #endregion
