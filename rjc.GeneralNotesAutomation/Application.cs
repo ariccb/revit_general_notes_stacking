@@ -4,65 +4,85 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Autodesk.Revit.UI;
-using Autodesk.Revit.ApplicationServices;
 using Autodesk.Revit.Attributes;
-using System.IO;
+using Autodesk.Revit.ApplicationServices;
+using System.Windows.Media;
 using System.Reflection;
+using System.IO;
+using System.Windows.Media.Imaging;
+using System.Drawing;
 
 namespace rjc.GeneralNotesAutomation
 {
     [Transaction(TransactionMode.Manual)]
     [Regeneration(RegenerationOption.Manual)]
-    
-    public class Application : IExternalApplication
+
+    // This class is used to setup the RJC Column Hub add-in buttons in Revit
+    // No code that carry out the actual Revit operations is include in this class
+    // Each button is linked to a separate class in Main.cs, which contains the actual Revit functions
+    public class Setup : IExternalApplication
     {
+        private string codeDir;
+        private string libPath;
+        private const string DLL_NAME = "GeneralNotesAutomation.dll";
+        public Setup()
+        {
+            // libPath establish the path of the compiled .dll file
+            string codeBase = Assembly.GetExecutingAssembly().CodeBase;
+            UriBuilder uri = new UriBuilder(codeBase);
+            string path = Uri.UnescapeDataString(uri.Path);
+            codeDir = Path.GetDirectoryName(path);
+            this.libPath = Path.Combine(codeDir, DLL_NAME);
+        }
+
         public Result OnShutdown(UIControlledApplication application)
         {
-            //throw new NotImplementedException();
             return Result.Succeeded;
         }
 
         public Result OnStartup(UIControlledApplication application)
         {
+            string tabName = "RJC Tools 2";
+            string panelName = "General Notes Formatting";
+
             try
             {
-                application.CreateRibbonTab("RJC");
+                application.CreateRibbonTab(tabName);
             }
             catch (Autodesk.Revit.Exceptions.ArgumentException) { }
-            RibbonPanel BeamScheduleToolsPanel = application.CreateRibbonPanel("RJC", "General Notes Tools");
-            AddPushButton(BeamScheduleToolsPanel);
+
+            RibbonPanel taggingPanel = null;
+            foreach (RibbonPanel panel in application.GetRibbonPanels(tabName))
+            {
+                if (panel.Name == panelName)
+                {
+                    taggingPanel = panel;
+                    break;
+                }
+            }
+            if (taggingPanel is null)
+                taggingPanel = application.CreateRibbonPanel(tabName, panelName);
+
+            AddPushButton(taggingPanel, "Stack General Notes", "Stack General Notes", "rjc.GeneralNotesAutomation.StackGeneralNotes",
+                "rjc.GeneralNotesAutomation.Graphics.stack.png", "");
 
             return Result.Succeeded;
         }
 
-        private void AddPushButton(RibbonPanel panel)
+        private void AddPushButton(RibbonPanel panel, string buttonName, string buttonText, string buttonClass, string iconRes, string toolTip)
         {
-            PushButtonData insertGeneralNotesData = new PushButtonData("InsertGeneralNotes", "Insert General\nNotes", Path.Combine(AssemblyDirectory, "GeneralNotesAutomation.dll"),"rjc.GeneralNotesAutomation.InsertGeneralNotes");
-            PushButtonData stackGeneralNotesData = new PushButtonData("StackGeneralNotes", "Stack General\nNotes", Path.Combine(AssemblyDirectory, "GeneralNotesAutomation.dll"), "rjc.GeneralNotesAutomation.StackGeneralNotes");
-            //PushButtonData formatGeneralNotesData = new PushButtonData("FormatGeneralNote", "Format", Path.Combine(AssemblyDirectory, "GeneralNotesAutomation.dll"), "rjc.GeneralNotesAutomation.FormatGeneralNote");
-            //PushButtonData createOutlinesData = new PushButtonData("CreateOutlines", "Create Outlines", Path.Combine(AssemblyDirectory, "GeneralNotesAutomation.dll"), "rjc.GeneralNotesAutomation.CreateOutlines");
+            // Initialize buttons
+            PushButtonData importBeamTaggingData = new PushButtonData(buttonName, buttonText, this.libPath, buttonClass);
+            PushButton importBeamTagging = panel.AddItem(importBeamTaggingData) as PushButton;
 
-            PushButton insertGeneralNotesButton = panel.AddItem(insertGeneralNotesData) as PushButton;
-            PushButton stackGeneralNotesButton = panel.AddItem(stackGeneralNotesData) as PushButton;
-            //PushButton formatGeneralNotesButton = panel.AddItem(formatGeneralNotesData) as PushButton;
-            //PushButton createOutlinesButton = panel.AddItem(createOutlinesData) as PushButton;
+            // Get image
+            Assembly myAssembly = Assembly.GetExecutingAssembly();
+            Stream myStream = myAssembly.GetManifestResourceStream(iconRes);
+            Bitmap bmp = new Bitmap(myStream);
+            importBeamTagging.LargeImage = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(bmp.GetHbitmap(), IntPtr.Zero, System.Windows.Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
 
-            insertGeneralNotesButton.LargeImage = new System.Windows.Media.Imaging.BitmapImage(new Uri(Path.Combine(AssemblyDirectory, @"Graphics\revitInsertGeneralNotesButton.png")));
-            stackGeneralNotesButton.LargeImage = new System.Windows.Media.Imaging.BitmapImage(new Uri(Path.Combine(AssemblyDirectory, @"Graphics\revitStackGeneralNotesButton.png")));
-            //formatGeneralNotesButton.LargeImage = new System.Windows.Media.Imaging.BitmapImage(new Uri(Path.Combine(AssemblyDirectory, @"Graphics\revitInsertGeneralNotesButton.png")));
-            //createOutlinesButton.LargeImage = new System.Windows.Media.Imaging.BitmapImage(new Uri(Path.Combine(AssemblyDirectory, @"Graphics\revitInsertGeneralNotesButton.png")));
-
-        }
-
-        public static string AssemblyDirectory
-        {
-            get
-            {
-                string codeBase = Assembly.GetExecutingAssembly().CodeBase;
-                UriBuilder uri = new UriBuilder(codeBase);
-                string path = Uri.UnescapeDataString(uri.Path);
-                return Path.GetDirectoryName(path);
-            }
+            // Tool tip displayed when hovered over the button
+            importBeamTagging.ToolTip = toolTip;
         }
     }
 }

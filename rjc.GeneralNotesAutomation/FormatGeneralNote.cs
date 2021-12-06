@@ -22,9 +22,9 @@ namespace rjc.GeneralNotesAutomation
             //UIApplication uiApp = commandData.Application;
             //Autodesk.Revit.DB.Document doc = uiApp.ActiveUIDocument.Document;
 
-            rjcUtilityClasses.Vectors vectorUtilities = new rjcUtilityClasses.Vectors();
-            rjcUtilityClasses.Views viewUtilities = new rjcUtilityClasses.Views();
-            rjcUtilityClasses.UnitConversion unitConversion = new rjcUtilityClasses.UnitConversion();
+            Vectors vectorUtilities = new Vectors();
+            Views viewUtilities = new Views();
+            UnitConversion unitConversion = new UnitConversion();
 
 
             //this collects the viewports which have been placed on sheets that are called or contain general notes

@@ -9,6 +9,7 @@ using Autodesk.Revit.UI;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI.Selection;
+using rjcUtilityClasses;
 
 namespace rjc.GeneralNotesAutomation
 {
@@ -221,7 +222,7 @@ namespace rjc.GeneralNotesAutomation
             int currentColumn = 0;
             int currentViewIndex = 0;
             int currentIteration = 0;
-            int indexToPlace = 0;
+            //int indexToPlace = 0;
             int nextViewIndex = currentViewIndex + 1;
             bool newColumnStarted = false;
             int viewIndex = 0;
