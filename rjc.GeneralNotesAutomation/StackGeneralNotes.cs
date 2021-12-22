@@ -9,6 +9,7 @@ using Autodesk.Revit.UI;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI.Selection;
+using System.Diagnostics;
 using rjcUtilityClasses;
 
 namespace rjc.GeneralNotesAutomation
@@ -31,9 +32,9 @@ namespace rjc.GeneralNotesAutomation
             TransactionGroup transactionGroup = new TransactionGroup(doc);
 
             //initialize utility classes
-            rjcUtilityClasses.Vectors vectorUtilities = new rjcUtilityClasses.Vectors();
-            rjcUtilityClasses.Views viewUtilities = new rjcUtilityClasses.Views();
-            rjcUtilityClasses.UnitConversion unitConversion = new rjcUtilityClasses.UnitConversion();
+            Vectors vectorUtilities = new Vectors();
+            Views viewUtilities = new Views();
+            UnitConversion unitConversion = new UnitConversion();
             FormatGeneralNote formatGeneralNote = new FormatGeneralNote();
 
             #endregion
@@ -96,8 +97,8 @@ namespace rjc.GeneralNotesAutomation
                 ElementId viewElementId = v.ViewId;
                 ElementId viewportElementId = v.Id;
                 View associatedView = doc.GetElement(v.ViewId) as View;
-                
-                
+                Parameter RJCStandardViewID = v.LookupParameter("RJC Standard View ID");
+                Parameter RJCOfficeID = v.LookupParameter("RJC Office ID");
                 
                 //get vertical length of note
                 BoundingBoxUV outline = associatedView.Outline;
@@ -118,7 +119,7 @@ namespace rjc.GeneralNotesAutomation
                 ViewSheet viewSheet = doc.GetElement(v.SheetId) as ViewSheet;
 
                 //Add ViewData
-                //ViewData item containing elementID, view name, and view length
+                //ViewData object containing elementID, view name, and view length
                 viewData.Add(new ViewData
                 {
                     viewElementId = viewElementId,
@@ -129,15 +130,16 @@ namespace rjc.GeneralNotesAutomation
                     viewportOriginX = boundingBoxXYZ.Max.X * scale,
                     viewportOriginY = boundingBoxXYZ.Min.Y * scale,
                     canPlaceOnSheet = true,
-                    viewportOutline = viewportOutline
-                    
+                    viewportOutline = viewportOutline,
+                    viewRJCOfficeId = RJCOfficeID.AsString(),
+                    viewRJCStandardViewId = RJCStandardViewID.AsString()
                 });
             }
 
             viewData = viewData
-                .OrderBy(x => x.sheetNumber)
-                .ThenByDescending(x => x.viewportOriginX)
-                .ThenByDescending(x => x.viewportOriginY)
+                .OrderBy(x => x.viewRJCStandardViewId)
+                //.ThenByDescending(x => x.viewportOriginX)
+                //.ThenByDescending(x => x.viewportOriginY)
                 //.ThenBy(x => x.viewLength)
                 .ToList();
 
@@ -221,11 +223,11 @@ namespace rjc.GeneralNotesAutomation
             int currentSheetIndex = 0;
             int currentColumn = 0;
             int currentViewIndex = 0;
-            int currentIteration = 0;
+            int i = 0;
             //int indexToPlace = 0;
             int nextViewIndex = currentViewIndex + 1;
-            bool newColumnStarted = false;
             int viewIndex = 0;
+            int lastPlacedViewIndex;
 
             //calculate max number of columns
             double workingAreaWidth = topRightWorkingArea.X - bottomLeftWorkingArea.X;
@@ -240,22 +242,21 @@ namespace rjc.GeneralNotesAutomation
 
             //try for loop
             //this loop will try to select the index of the view to place next.
-            for(currentIteration=0; currentIteration<numberOfViewsToPlace; currentIteration++)
+            for(i=0; i<numberOfViewsToPlace; i++)
             {
-                newColumnStarted = false;
                 viewElementIdToPlace = null;
                 viewIndex = 0;
+               
 
-                if(numberOfViewsToPlace==viewData.Count)
-                {
-                    newColumnStarted = true;
-                }
 
                 if ((origin.Y - viewData[viewIndex].viewLength) > workingAreaBoundingBox.Min.Y)
                 {
                     viewElementIdToPlace = viewData[viewIndex].viewElementId;
                     currentViewLength = viewData[viewIndex].viewLength;
-                    viewData.RemoveAt(viewIndex);
+                    lastPlacedViewIndex = viewIndex; // keeps a log of what the index is of the view that was last successfully placed,
+                                                     // to allow matching that view with string search                
+                    viewData.RemoveAt(viewIndex);    // need to move this to a NEW list instead of deleting it, because we still want to be able to
+                                                     // use the data from the last View.
                 }
 
                 else
@@ -271,11 +272,9 @@ namespace rjc.GeneralNotesAutomation
                             if(currentColumn > maxNumberOfColumns)
                             {
                                 currentSheetIndex++;
-                                currentSheetElementId = sheetData[currentSheetIndex].SheetId;
-                                currentColumn = 0;
+                                currentSheetElementId = sheetData[currentSheetIndex].SheetId; // need to add code to duplicate sheet if currentSheetIndex
+                                currentColumn = 0;                                            // is smaller than indexes in sheetData
                             }
-
-                            newColumnStarted = true;
                             viewIndex = 0;
                             origin = protoOrigin;
                             break;

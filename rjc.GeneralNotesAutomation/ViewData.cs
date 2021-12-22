@@ -29,5 +29,9 @@ namespace rjc.GeneralNotesAutomation
         public Outline viewportOutline { get; set; }
 
         public bool isHollowCoreNote { get; set; }
+
+        public string viewRJCOfficeId { get; set; }
+
+        public string viewRJCStandardViewId { get; set; }
     }
 }
