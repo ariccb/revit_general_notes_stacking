@@ -9,6 +9,7 @@ using Autodesk.Revit.UI;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.Creation;
 using rjcUtilityClasses;
+using System.Diagnostics;
 
 namespace rjc.GeneralNotesAutomation
 {
@@ -31,6 +32,11 @@ namespace rjc.GeneralNotesAutomation
             FilteredElementCollector draftingViews = new FilteredElementCollector(doc);
             FilteredElementCollector generalNotesViewports = new FilteredElementCollector(doc);
             ParameterValueProvider parameterViewportSheetNameProvider = new ParameterValueProvider(new ElementId((int)BuiltInParameter.VIEWPORT_SHEET_NAME));
+            Debug.WriteLine(parameterViewportSheetNameProvider);
+
+            /* ParameterValueProvider parameterViewportRJCViewIDProvider = new ParameterValueProvider(new ElementId();
+             Console.WriteLine(parameterViewportSheetNameProvider);*/
+
             FilterStringRuleEvaluator sheetNameContainsEvaluator = new FilterStringContains();
             FilterStringRule filterViewportSheetNameStringRule = new FilterStringRule(parameterViewportSheetNameProvider, sheetNameContainsEvaluator, "General Notes", false);
             ElementParameterFilter viewportSheetNameParameterFilter = new ElementParameterFilter(filterViewportSheetNameStringRule);
@@ -41,7 +47,7 @@ namespace rjc.GeneralNotesAutomation
             Transaction transaction = new Transaction(doc);
             TransactionGroup transactionGroup = new TransactionGroup(doc);
 
-            transactionGroup.Start("Format Notes");
+            transactionGroup.Start("Format Note");
 
             foreach (Viewport v in generalNotesViewports)
             {
