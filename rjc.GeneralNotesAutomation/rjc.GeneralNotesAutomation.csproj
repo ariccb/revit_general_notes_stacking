@@ -41,9 +41,9 @@
       <HintPath>..\..\..\..\..\..\..\Program Files\Autodesk\Revit 2021\RevitAPIUI.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="rjcUtilityClasses, Version=1.0.0.0, Culture=neutral, processorArchitecture=AMD64">
+    <Reference Include="rjcUtilityClasses, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\rjcUtilityClasses\rjc.UtilityClasses\bin\Debug\rjcUtilityClasses.dll</HintPath>
+      <HintPath>..\..\rjcUtilityClasses\rjc.UtilityClasses\bin\x64\Debug\rjcUtilityClasses.dll</HintPath>
     </Reference>
     <Reference Include="System">
       <Private>False</Private>

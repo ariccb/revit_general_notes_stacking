@@ -10,7 +10,9 @@ using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI.Selection;
 using System.Diagnostics;
-using rjcUtilityClasses;
+using rjc.UtilityClasses;
+using System.Text.RegularExpressions;
+
 
 namespace rjc.GeneralNotesAutomation
 {
@@ -58,16 +60,16 @@ namespace rjc.GeneralNotesAutomation
 
             //create sheetdata instance and add to list of sheets
             List<SheetData> sheetData = new List<SheetData>();
-            foreach(ViewSheet vs in generalNotesSheets)
+            foreach (ViewSheet vs in generalNotesSheets)
             {
                 sheetData.Add(new SheetData
                 {
                     SheetId = vs.Id,
                     SheetName = vs.Name,
                     SheetNumber = vs.SheetNumber
-                    
+
                 });
-                
+
             }
 
             sheetData = sheetData.OrderBy(x => x.SheetNumber).ToList();
@@ -91,6 +93,9 @@ namespace rjc.GeneralNotesAutomation
             //create instance of view data list
             List<ViewData> viewData = new List<ViewData>();
 
+            //create another list to collect placed views-to maintain access to the viewdata 
+            List<ViewData> placedViewData = new List<ViewData>();
+
             //iterate through viewports collects, and put view information in viewData
             foreach (Viewport v in generalNotesViewports)
             {
@@ -99,7 +104,7 @@ namespace rjc.GeneralNotesAutomation
                 View associatedView = doc.GetElement(v.ViewId) as View;
                 Parameter RJCStandardViewID = v.LookupParameter("RJC Standard View ID");
                 Parameter RJCOfficeID = v.LookupParameter("RJC Office ID");
-                
+
                 //get vertical length of note
                 BoundingBoxUV outline = associatedView.Outline;
 
@@ -109,11 +114,11 @@ namespace rjc.GeneralNotesAutomation
                 UV bottomRightPoint = new UV(outline.Max.U, outline.Min.V);
 
                 Outline viewportOutline = v.GetBoxOutline();
-                
+
 
                 BoundingBoxXYZ boundingBoxXYZ = formatGeneralNote.generalNoteBoundingBox(doc, associatedView);
 
-                
+
                 double scale = (double)1 / associatedView.Scale;
                 double viewLength = (boundingBoxXYZ.Max.Y - boundingBoxXYZ.Min.Y) * scale;
                 ViewSheet viewSheet = doc.GetElement(v.SheetId) as ViewSheet;
@@ -165,8 +170,7 @@ namespace rjc.GeneralNotesAutomation
             #region transaction to reposition titleblocks and delete viewports
 
             //double boundingBoxBorder = 0.01; //in feet
-            double typicalNoteWidth = unitConversion.mmToFt(160); //in feet
-
+            double typicalNoteWidth = unitConversion.mmToFt(160); //in 
             //remove viewports from sheets so they can be placed fresh
             transactionGroup.Start("Delete Viewports");
 
@@ -227,12 +231,11 @@ namespace rjc.GeneralNotesAutomation
             //int indexToPlace = 0;
             int nextViewIndex = currentViewIndex + 1;
             int viewIndex = 0;
-            int lastPlacedViewIndex;
 
             //calculate max number of columns
             double workingAreaWidth = topRightWorkingArea.X - bottomLeftWorkingArea.X;
-            
-            int maxNumberOfColumns = Convert.ToInt32(Math.Floor(workingAreaWidth / typicalNoteWidth))-1;
+
+            int maxNumberOfColumns = Convert.ToInt32(Math.Floor(workingAreaWidth / typicalNoteWidth)) - 1;
 
             ElementId viewElementIdToPlace = null;
             ElementId currentSheetElementId = sheetData[currentSheetIndex].SheetId;
@@ -240,36 +243,43 @@ namespace rjc.GeneralNotesAutomation
             int numberOfViewsToPlace = viewData.Count;
 
 
+
+
+            /*for file in os.listdir(file_path):
+            if fnmatch.fnmatch(file, 'STR-STD-00?-*' + units + ' Notes - Revit 20??.rvt'):
+
+            }*/
+
+
             //try for loop
             //this loop will try to select the index of the view to place next.
-            for(i=0; i<numberOfViewsToPlace; i++)
+            for (i = 0; i < numberOfViewsToPlace; i++)
             {
                 viewElementIdToPlace = null;
                 viewIndex = 0;
-               
+
 
 
                 if ((origin.Y - viewData[viewIndex].viewLength) > workingAreaBoundingBox.Min.Y)
                 {
-                    viewElementIdToPlace = viewData[viewIndex].viewElementId;
+                    viewElementIdToPlace = viewData[viewIndex].viewElementId; // saves the elementId of the view to place next
                     currentViewLength = viewData[viewIndex].viewLength;
-                    lastPlacedViewIndex = viewIndex; // keeps a log of what the index is of the view that was last successfully placed,
-                                                     // to allow matching that view with string search                
+                    placedViewData.Add(viewData[viewIndex]);
                     viewData.RemoveAt(viewIndex);    // need to move this to a NEW list instead of deleting it, because we still want to be able to
                                                      // use the data from the last View.
                 }
 
                 else
-                {
-                    while ((origin.Y - viewData[viewIndex].viewLength) < workingAreaBoundingBox.Min.Y)
+                {               //this while loop is breaking when the RJC standard view ID goes from N1*** to N2***
+                    while ((origin.Y - viewData[viewIndex].viewLength) < workingAreaBoundingBox.Min.Y && placedViewData.Count != 0 && CompareRjcSVI(viewData, viewIndex, placedViewData, placedViewData.Count - 1))
                     {
                         viewIndex++;
 
                         //what to do if the conditions are never met
-                        if(viewIndex == viewData.Count)
+                        if (viewIndex == viewData.Count)
                         {
                             currentColumn++;
-                            if(currentColumn > maxNumberOfColumns)
+                            if (currentColumn > maxNumberOfColumns)
                             {
                                 currentSheetIndex++;
                                 currentSheetElementId = sheetData[currentSheetIndex].SheetId; // need to add code to duplicate sheet if currentSheetIndex
@@ -289,7 +299,7 @@ namespace rjc.GeneralNotesAutomation
                 View view = doc.GetElement(viewElementIdToPlace) as View;
                 BoundingBoxUV actualBoundingBoxUV = view.Outline;
                 BoundingBoxXYZ desiredBoundingBox = formatGeneralNote.generalNoteBoundingBox(doc, view);
-                double dTop = actualBoundingBoxUV.Max.V - desiredBoundingBox.Max.Y*((double)1/view.Scale);
+                double dTop = actualBoundingBoxUV.Max.V - desiredBoundingBox.Max.Y * ((double)1 / view.Scale);
                 double dBottom = desiredBoundingBox.Min.Y * ((double)1 / view.Scale) - actualBoundingBoxUV.Min.V;
                 double dModifierY = ((dTop - dBottom) / 2);
 
@@ -297,8 +307,8 @@ namespace rjc.GeneralNotesAutomation
                 double dLeft = desiredBoundingBox.Min.X * ((double)1 / view.Scale) - actualBoundingBoxUV.Min.U;
                 double dModifierX = ((dRight - dLeft) / 2);
 
-                XYZ placementPoint = new XYZ(protoOrigin.X-(currentColumn*typicalNoteWidth), (origin.Y) - (currentViewLength / 2), 0);
-                XYZ modifiedPlacementPoint = new XYZ(protoOrigin.X - (currentColumn * typicalNoteWidth)+dModifierX, (origin.Y) - (currentViewLength / 2) + dModifierY, 0);
+                XYZ placementPoint = new XYZ(protoOrigin.X - (currentColumn * typicalNoteWidth), (origin.Y) - (currentViewLength / 2), 0);
+                XYZ modifiedPlacementPoint = new XYZ(protoOrigin.X - (currentColumn * typicalNoteWidth) + dModifierX, (origin.Y) - (currentViewLength / 2) + dModifierY, 0);
 
                 transaction.Start("Place Viewport");
                 Viewport.Create(doc, currentSheetElementId, viewElementIdToPlace, modifiedPlacementPoint);
@@ -336,6 +346,18 @@ namespace rjc.GeneralNotesAutomation
 
             return generalNotesViewports;
         }
-    
+
+        public bool CompareRjcSVI(List<ViewData> list1, int index1, List<ViewData> list2, int index2)
+        {
+
+            if (list1[index1].viewRJCStandardViewId.Substring(0, 2).DoesStringMatch(list2[index2].viewRJCStandardViewId.Substring(0, 2)))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
     }
 }

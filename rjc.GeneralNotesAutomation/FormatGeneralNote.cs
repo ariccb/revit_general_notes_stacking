@@ -8,7 +8,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.Creation;
-using rjcUtilityClasses;
+using rjc.UtilityClasses;
 using System.Diagnostics;
 
 namespace rjc.GeneralNotesAutomation
