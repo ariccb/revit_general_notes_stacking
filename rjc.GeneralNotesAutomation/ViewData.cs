@@ -10,28 +10,28 @@ namespace rjc.GeneralNotesAutomation
 {
     public class ViewData
     {
-        public ElementId viewElementId { get; set; }
+        public ElementId ViewElementId { get; set; }
 
         //public ElementId viewportElementId { get; set; }
 
-        public double viewLength { get; set; }
+        public double ViewLength { get; set; }
 
-        public string viewName { get; set; }
+        public string ViewName { get; set; }
 
-        public double viewportOriginX { get; set; }
+        public double ViewportOriginX { get; set; }
 
-        public double viewportOriginY { get; set; }
+        public double ViewportOriginY { get; set; }
 
-        public string sheetNumber { get; set; }
+        public string SheetNumber { get; set; }
 
-        public bool canPlaceOnSheet { get; set; }
+        public bool CanPlaceOnSheet { get; set; }
 
-        public Outline viewportOutline { get; set; }
+        public Outline ViewportOutline { get; set; }
 
-        public bool isHollowCoreNote { get; set; }
+        public bool IsHollowCoreNote { get; set; }
 
-        public string viewRJCOfficeId { get; set; }
+        public string ViewRJCOfficeId { get; set; }
 
-        public string viewRJCStandardViewId { get; set; }
+        public string ViewRJCStandardViewId { get; set; }
     }
 }

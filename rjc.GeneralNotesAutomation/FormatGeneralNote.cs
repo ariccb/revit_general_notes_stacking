@@ -28,8 +28,7 @@ namespace rjc.GeneralNotesAutomation
             UnitConversion unitConversion = new UnitConversion();
 
 
-            //this collects the viewports which have been placed on sheets that are called or contain general notes
-            FilteredElementCollector draftingViews = new FilteredElementCollector(doc);
+            //this collects the viewports which have been placed on sheets that are called or contain general notes            
             FilteredElementCollector generalNotesViewports = new FilteredElementCollector(doc);
             ParameterValueProvider parameterViewportSheetNameProvider = new ParameterValueProvider(new ElementId((int)BuiltInParameter.VIEWPORT_SHEET_NAME));
             Debug.WriteLine(parameterViewportSheetNameProvider);
@@ -57,7 +56,7 @@ namespace rjc.GeneralNotesAutomation
                     generalNotesViews.Add(view);
 
                     //create bounding box
-                    BoundingBoxXYZ boundingBoxXYZ = generalNoteBoundingBox(doc, view);
+                    BoundingBoxXYZ boundingBoxXYZ = GeneralNoteBoundingBox(doc, view);
 
                     //collect all the elements in the view
                     //to move them
@@ -90,7 +89,7 @@ namespace rjc.GeneralNotesAutomation
             transactionGroup.Assimilate();
         }
 
-        public BoundingBoxXYZ generalNoteBoundingBox(Autodesk.Revit.DB.Document doc, View view)
+        public BoundingBoxXYZ GeneralNoteBoundingBox(Autodesk.Revit.DB.Document doc, View view)
         {
             FilteredElementCollector BK90ElementsCollector = new FilteredElementCollector(doc, view.Id);
 
@@ -120,15 +119,17 @@ namespace rjc.GeneralNotesAutomation
 
 
             //create bounding box
-            BoundingBoxXYZ boundingBoxXYZ = new BoundingBoxXYZ();
-            boundingBoxXYZ.Max = new XYZ(maxX, maxY, 0);
-            boundingBoxXYZ.Min = new XYZ(minX, minY, 0);
+            BoundingBoxXYZ boundingBoxXYZ = new BoundingBoxXYZ
+            {
+                Max = new XYZ(maxX, maxY, 0),
+                Min = new XYZ(minX, minY, 0)
+            };
 
             return boundingBoxXYZ;
 
         }
 
-        public Outline generalNoteOutline(Autodesk.Revit.DB.Document doc, View view)
+        public Outline GeneralNoteOutline(Autodesk.Revit.DB.Document doc, View view)
         {
             FilteredElementCollector BK90ElementsCollector = new FilteredElementCollector(doc, view.Id);
 
@@ -166,14 +167,13 @@ namespace rjc.GeneralNotesAutomation
 
         }
 
-        public double generalNoteLength(BoundingBoxXYZ boundingBoxXYZ)
+        public double GeneralNoteLength(BoundingBoxXYZ boundingBoxXYZ)
         {
             return boundingBoxXYZ.Max.Y - boundingBoxXYZ.Min.Y;
         }
 
         public double ScaledGeneralNoteLength(BoundingBoxXYZ boundingBoxXYZ, View view)
-        {
-            int viewScale = view.Scale;
+        {            
             return (boundingBoxXYZ.Max.Y - boundingBoxXYZ.Min.Y)*((double)1/view.Scale);
         }
     }

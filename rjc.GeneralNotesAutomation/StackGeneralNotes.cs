@@ -96,6 +96,9 @@ namespace rjc.GeneralNotesAutomation
             //create another list to collect placed views-to maintain access to the viewdata 
             List<ViewData> placedViewData = new List<ViewData>();
 
+            //create another list to collect next views to place after a column change
+            List<ViewData> nextToPlaceViewData = new List<ViewData>();
+
             //iterate through viewports collects, and put view information in viewData
             foreach (Viewport v in generalNotesViewports)
             {
@@ -116,7 +119,7 @@ namespace rjc.GeneralNotesAutomation
                 Outline viewportOutline = v.GetBoxOutline();
 
 
-                BoundingBoxXYZ boundingBoxXYZ = formatGeneralNote.generalNoteBoundingBox(doc, associatedView);
+                BoundingBoxXYZ boundingBoxXYZ = formatGeneralNote.GeneralNoteBoundingBox(doc, associatedView);
 
 
                 double scale = (double)1 / associatedView.Scale;
@@ -127,22 +130,22 @@ namespace rjc.GeneralNotesAutomation
                 //ViewData object containing elementID, view name, and view length
                 viewData.Add(new ViewData
                 {
-                    viewElementId = viewElementId,
-                    viewName = associatedView.Name,
-                    viewLength = viewLength,
+                    ViewElementId = viewElementId,
+                    ViewName = associatedView.Name,
+                    ViewLength = viewLength,
                     //viewportElementId = viewportElementId,
-                    sheetNumber = viewSheet.SheetNumber,
-                    viewportOriginX = boundingBoxXYZ.Max.X * scale,
-                    viewportOriginY = boundingBoxXYZ.Min.Y * scale,
-                    canPlaceOnSheet = true,
-                    viewportOutline = viewportOutline,
-                    viewRJCOfficeId = RJCOfficeID.AsString(),
-                    viewRJCStandardViewId = RJCStandardViewID.AsString()
+                    SheetNumber = viewSheet.SheetNumber,
+                    ViewportOriginX = boundingBoxXYZ.Max.X * scale,
+                    ViewportOriginY = boundingBoxXYZ.Min.Y * scale,
+                    CanPlaceOnSheet = true,
+                    ViewportOutline = viewportOutline,
+                    ViewRJCOfficeId = RJCOfficeID.AsString(),
+                    ViewRJCStandardViewId = RJCStandardViewID.AsString()
                 });
             }
 
             viewData = viewData
-                .OrderBy(x => x.viewRJCStandardViewId)
+                .OrderBy(x => x.ViewRJCStandardViewId)
                 //.ThenByDescending(x => x.viewportOriginX)
                 //.ThenByDescending(x => x.viewportOriginY)
                 //.ThenBy(x => x.viewLength)
@@ -210,9 +213,11 @@ namespace rjc.GeneralNotesAutomation
             XYZ topRightWorkingArea = uiDoc.Selection.PickPoint("Select Top Right Of Working Area");
             XYZ bottomLeftWorkingArea = uiDoc.Selection.PickPoint("Select Bottom Left Of Working Area");
 
-            BoundingBoxXYZ workingAreaBoundingBox = new BoundingBoxXYZ();
-            workingAreaBoundingBox.Max = topRightWorkingArea;
-            workingAreaBoundingBox.Min = bottomLeftWorkingArea;
+            BoundingBoxXYZ workingAreaBoundingBox = new BoundingBoxXYZ
+            {
+                Max = topRightWorkingArea,
+                Min = bottomLeftWorkingArea
+            };
 
             //PickedBox pickedBox = uiDoc.Selection.PickBox(PickBoxStyle.Enclosing, "Select Working Sheet Area");
 
@@ -226,11 +231,10 @@ namespace rjc.GeneralNotesAutomation
 
             int currentSheetIndex = 0;
             int currentColumn = 0;
-            int currentViewIndex = 0;
-            int i = 0;
-            //int indexToPlace = 0;
-            int nextViewIndex = currentViewIndex + 1;
+            bool newCategoryGroupStarted = false;
+            int i = 0;            
             int viewIndex = 0;
+            int nextToPlaceViewIndex = 0;
 
             //calculate max number of columns
             double workingAreaWidth = topRightWorkingArea.X - bottomLeftWorkingArea.X;
@@ -242,80 +246,175 @@ namespace rjc.GeneralNotesAutomation
             double currentViewLength = 0;
             int numberOfViewsToPlace = viewData.Count;
 
-
-
-
-            /*for file in os.listdir(file_path):
-            if fnmatch.fnmatch(file, 'STR-STD-00?-*' + units + ' Notes - Revit 20??.rvt'):
-
-            }*/
-
-
-            //try for loop
-            //this loop will try to select the index of the view to place next.
+            //this loop will iterate until all the views have been placed
             for (i = 0; i < numberOfViewsToPlace; i++)
             {
                 viewElementIdToPlace = null;
                 viewIndex = 0;
+                int maxTries = 1000;
+                int tries = 0;
 
-
-
-                if ((origin.Y - viewData[viewIndex].viewLength) > workingAreaBoundingBox.Min.Y)
-                {
-                    viewElementIdToPlace = viewData[viewIndex].viewElementId; // saves the elementId of the view to place next
-                    currentViewLength = viewData[viewIndex].viewLength;
-                    placedViewData.Add(viewData[viewIndex]);
-                    viewData.RemoveAt(viewIndex);    // need to move this to a NEW list instead of deleting it, because we still want to be able to
-                                                     // use the data from the last View.
-                }
-
-                else
-                {               //this while loop is breaking when the RJC standard view ID goes from N1*** to N2***
-                    while ((origin.Y - viewData[viewIndex].viewLength) < workingAreaBoundingBox.Min.Y && placedViewData.Count != 0 && CompareRjcSVI(viewData, viewIndex, placedViewData, placedViewData.Count - 1))
+                /*try
+                {*/
+                    if (placedViewData.Count == 0)
                     {
-                        viewIndex++;
-
-                        //what to do if the conditions are never met
-                        if (viewIndex == viewData.Count)
+                        PlaceView(viewData, viewIndex);
+                        numberOfViewsToPlace--;
+                    }
+                    // follows this while loop until the new Category Group is changed.
+                    while (newCategoryGroupStarted == false)
+                    {
+                        //While current viewIndex hasn't reached the end of viewData 
+                        while (viewIndex < viewData.Count)
+                        {
+                            // while the attempted view matches the Standard View ID of the last placed view, AND the view fits
+                            while (CompareRjcSVI(viewData, viewIndex, placedViewData, placedViewData.Count - 1) && ((origin.Y - viewData[viewIndex].ViewLength) > workingAreaBoundingBox.Min.Y))
+                            {
+                                PlaceView(viewData, viewIndex);
+                                numberOfViewsToPlace--;
+                            }
+                            // while the attempted view matches the Standard View ID of the last placed view, AND the view DOESN'T fit
+                            if (CompareRjcSVI(viewData, viewIndex, placedViewData, placedViewData.Count - 1) && ((origin.Y - viewData[viewIndex].ViewLength) < workingAreaBoundingBox.Min.Y))
+                            {
+                                nextToPlaceViewData.Add(viewData[viewIndex]);
+                                viewData.RemoveAt(viewIndex);
+                                numberOfViewsToPlace--;
+                                // might need to add a viewIndex++; here
+                            }
+                            // if the attempted view DOESN'T match the Standard View ID of the last placed view
+                            else
+                            {
+                                viewIndex++;
+                            }
+                            // if the view length will never fit regardless of new column - as in user error in selecting a too-small pickbox
+                            if (viewIndex != viewData.Count)
+                            {
+                                if (viewData[viewIndex].ViewLength < workingAreaBoundingBox.Min.Y)
+                                {
+                                    throw new Exception($"The bounding box selected by the user is too small to fit some views. If the bounding box needs to be this small" +
+                                                        "to accommodate a small sheet size for example, you will need to split and resize this view: \n{viewData[viewIndex].viewName}" +
+                                                        "To maintain both split views' ability to auto-stack, please add A,B,C,D, etc. to the end of the RJC Standard View ID parameter for each view");
+                                }
+                            }
+                            if (tries == maxTries)
+                            {
+                                break;
+                            }
+                            tries++;
+                        }
+                        // if there are any views that match the category group, but didn't fit on the same column, start new column and place rest of matching category group views
+                        if (nextToPlaceViewData.Count > 0)
                         {
                             currentColumn++;
-                            if (currentColumn > maxNumberOfColumns)
-                            {
-                                currentSheetIndex++;
-                                currentSheetElementId = sheetData[currentSheetIndex].SheetId; // need to add code to duplicate sheet if currentSheetIndex
-                                currentColumn = 0;                                            // is smaller than indexes in sheetData
-                            }
-                            viewIndex = 0;
+                            nextToPlaceViewIndex = 0;
                             origin = protoOrigin;
+
+                            // while there are 'saved views left in the category group'
+                            while (nextToPlaceViewData.Count > 0)
+                            {
+                                // if the view fits
+                                if ((origin.Y - nextToPlaceViewData[nextToPlaceViewIndex].ViewLength) > workingAreaBoundingBox.Min.Y)
+                                {
+                                    PlaceView(nextToPlaceViewData, nextToPlaceViewIndex);
+                                }
+                                else
+                                {
+                                    nextToPlaceViewIndex++;
+                                }
+                                if (nextToPlaceViewData.Count > 0)
+                                {
+                                    // if the view length will never fit regardless of new column - as in user error in selecting a too-small pickbox
+                                    if (nextToPlaceViewData[nextToPlaceViewIndex].ViewLength < workingAreaBoundingBox.Min.Y)
+                                    {
+                                        throw new Exception($"The bounding box selected by the user is too small to fit some views. If the bounding box needs to be this small" +
+                                                        "to accommodate a small sheet size for example, you will need to split and resize this view: \n{viewData[viewIndex].viewName}" +
+                                                        "\nTo maintain both split views' ability to auto-stack, please add A,B,C,D, etc. to the end of the RJC Standard View ID parameter for each view");
+                                    }
+                                }
+                                //what to do if the conditions are never met
+                                if (nextToPlaceViewIndex == nextToPlaceViewData.Count)
+                                {
+                                    currentColumn++;
+                                    if (currentColumn > maxNumberOfColumns)
+                                    {
+                                        currentSheetIndex++;
+                                        currentSheetElementId = sheetData[currentSheetIndex].SheetId;
+                                        currentColumn = 0;
+                                    }
+                                    nextToPlaceViewIndex = 0;
+                                    origin = protoOrigin;
+                                    continue;
+                                }
+                                if (nextToPlaceViewData.Count == 0)
+                                {
+                                    newCategoryGroupStarted = true;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            newCategoryGroupStarted = true;
+                        }
+                        if (tries == maxTries)
+                        {
                             break;
                         }
+                        tries++;
                     }
 
-                    viewElementIdToPlace = viewData[viewIndex].viewElementId;
-                    currentViewLength = viewData[viewIndex].viewLength;
-                    viewData.RemoveAt(viewIndex);
-                }
+                    //
+                    currentColumn++;
 
-                View view = doc.GetElement(viewElementIdToPlace) as View;
-                BoundingBoxUV actualBoundingBoxUV = view.Outline;
-                BoundingBoxXYZ desiredBoundingBox = formatGeneralNote.generalNoteBoundingBox(doc, view);
-                double dTop = actualBoundingBoxUV.Max.V - desiredBoundingBox.Max.Y * ((double)1 / view.Scale);
-                double dBottom = desiredBoundingBox.Min.Y * ((double)1 / view.Scale) - actualBoundingBoxUV.Min.V;
-                double dModifierY = ((dTop - dBottom) / 2);
+                    if (currentColumn > maxNumberOfColumns)
+                    {
+                        currentSheetIndex++;
+                        currentSheetElementId = sheetData[currentSheetIndex].SheetId;
+                        currentColumn = 0;
+                    }
 
-                double dRight = actualBoundingBoxUV.Max.U - desiredBoundingBox.Max.X * ((double)1 / view.Scale);
-                double dLeft = desiredBoundingBox.Min.X * ((double)1 / view.Scale) - actualBoundingBoxUV.Min.U;
-                double dModifierX = ((dRight - dLeft) / 2);
+                    viewIndex = 0;
+                    origin = protoOrigin;
+                    continue;
+                /*}
+                catch (Exception e)
+                {
+                    if (placedViewData.Count == 0)
+                    {
+                        viewElementIdToPlace = viewData[viewIndex].viewElementId; // saves the elementId of the view to place next
+                        currentViewLength = viewData[viewIndex].viewLength;
+                        placedViewData.Add(viewData[viewIndex]);
+                        viewData.RemoveAt(viewIndex);
+                    }
+                    continue;
+                }*/
+               
+                void PlaceView(List<ViewData> sourceList, int index)
+                {
+                    viewElementIdToPlace = sourceList[index].ViewElementId; // saves the elementId of the view to place next
+                    currentViewLength = sourceList[index].ViewLength;
+                    placedViewData.Add(sourceList[index]);
+                    sourceList.RemoveAt(index);
 
-                XYZ placementPoint = new XYZ(protoOrigin.X - (currentColumn * typicalNoteWidth), (origin.Y) - (currentViewLength / 2), 0);
-                XYZ modifiedPlacementPoint = new XYZ(protoOrigin.X - (currentColumn * typicalNoteWidth) + dModifierX, (origin.Y) - (currentViewLength / 2) + dModifierY, 0);
+                    View view = doc.GetElement(viewElementIdToPlace) as View;
+                    BoundingBoxUV actualBoundingBoxUV = view.Outline;
+                    BoundingBoxXYZ desiredBoundingBox = formatGeneralNote.GeneralNoteBoundingBox(doc, view);
+                    double dTop = actualBoundingBoxUV.Max.V - desiredBoundingBox.Max.Y * ((double)1 / view.Scale);
+                    double dBottom = desiredBoundingBox.Min.Y * ((double)1 / view.Scale) - actualBoundingBoxUV.Min.V;
+                    double dModifierY = ((dTop - dBottom) / 2);
 
-                transaction.Start("Place Viewport");
-                Viewport.Create(doc, currentSheetElementId, viewElementIdToPlace, modifiedPlacementPoint);
-                transaction.Commit();
+                    double dRight = actualBoundingBoxUV.Max.U - desiredBoundingBox.Max.X * ((double)1 / view.Scale);
+                    double dLeft = desiredBoundingBox.Min.X * ((double)1 / view.Scale) - actualBoundingBoxUV.Min.U;
+                    double dModifierX = ((dRight - dLeft) / 2);
 
-                origin = new XYZ(placementPoint.X, (placementPoint.Y) - (currentViewLength / 2), 0);
+                    XYZ placementPoint = new XYZ(protoOrigin.X - (currentColumn * typicalNoteWidth), (origin.Y) - (currentViewLength / 2), 0);
+                    XYZ modifiedPlacementPoint = new XYZ(protoOrigin.X - (currentColumn * typicalNoteWidth) + dModifierX, (origin.Y) - (currentViewLength / 2) + dModifierY, 0);
 
+                    transaction.Start("Place Viewport");
+                    Viewport.Create(doc, currentSheetElementId, viewElementIdToPlace, modifiedPlacementPoint);
+                    transaction.Commit();
+
+                    origin = new XYZ(placementPoint.X, (placementPoint.Y) - (currentViewLength / 2), 0);
+                }               
             }
 
             transaction.Start("Change Type");
@@ -349,8 +448,10 @@ namespace rjc.GeneralNotesAutomation
 
         public bool CompareRjcSVI(List<ViewData> list1, int index1, List<ViewData> list2, int index2)
         {
-
-            if (list1[index1].viewRJCStandardViewId.Substring(0, 2).DoesStringMatch(list2[index2].viewRJCStandardViewId.Substring(0, 2)))
+            if (list1.Count == 0 || list2.Count == 0) {
+                return false;
+            }
+            else if (list1[index1].ViewRJCStandardViewId.Substring(0, 3).DoesStringMatch(list2[index2].ViewRJCStandardViewId.Substring(0, 3)))
             {
                 return true;
             }
