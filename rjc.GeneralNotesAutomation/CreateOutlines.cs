@@ -41,7 +41,7 @@ namespace rjc.GeneralNotesAutomation
             //}
 
             //------------------------------------
-            Outline BK90Outlines = formatGeneralNote.generalNoteOutline(doc, doc.ActiveView);
+            Outline BK90Outlines = formatGeneralNote.GeneralNoteOutline(doc, doc.ActiveView);
             Line top2 = Line.CreateBound(new XYZ(BK90Outlines.MinimumPoint.X, BK90Outlines.MaximumPoint.Y, 0), new XYZ(BK90Outlines.MaximumPoint.X, BK90Outlines.MaximumPoint.Y, 0));
             Line bottom2 = Line.CreateBound(new XYZ(BK90Outlines.MinimumPoint.X, BK90Outlines.MinimumPoint.Y, 0), new XYZ(BK90Outlines.MaximumPoint.X, BK90Outlines.MinimumPoint.Y, 0));
             Line left2 = Line.CreateBound(new XYZ(BK90Outlines.MinimumPoint.X, BK90Outlines.MaximumPoint.Y, 0), new XYZ(BK90Outlines.MinimumPoint.X, BK90Outlines.MinimumPoint.Y, 0));
