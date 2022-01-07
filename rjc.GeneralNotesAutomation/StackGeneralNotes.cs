@@ -234,7 +234,7 @@ namespace rjc.GeneralNotesAutomation
             int currentSheetIndex = 0;
             int currentColumn = 0;
             bool newCategoryGroupStarted = false;
-            int i = 0;
+            //int i = 0;
             int viewIndex = 0;
             int nextToPlaceViewIndex = 0;
 
@@ -307,19 +307,20 @@ namespace rjc.GeneralNotesAutomation
                             }
                             tries++;
                         }
-                        // after trying to fit in the same column, move onto the next column after going through all viewData items
+                        // after trying to find all views in viewData set that match the category group, place saved nextToPlaceViewData views next, and 
+                        // if that set is empty, place the next view in the viewData set regardless of match or not. 
                         if (viewIndex == viewData.Count)
-                        {
-                            currentColumn++;
-                            if (currentColumn > maxNumberOfColumns)
-                            {
-                                currentSheetIndex++;
-                                currentSheetElementId = sheetData[currentSheetIndex].SheetId; // this is the like causing the out of range error. 
-                                currentColumn = 0;
-                            }
+                        {                            
                             // if there are any views that match the category group, but didn't fit on the same column, start new column and place rest of matching category group views
                             if (nextToPlaceViewData.Count > 0)
                             {
+                                currentColumn++;
+                                if (currentColumn > maxNumberOfColumns)
+                                {
+                                    currentSheetIndex++;
+                                    currentSheetElementId = sheetData[currentSheetIndex].SheetId; // this is the like causing the out of range error. 
+                                    currentColumn = 0;
+                                }
                                 nextToPlaceViewIndex = 0;
                                 origin = protoOrigin;
 
@@ -378,7 +379,32 @@ namespace rjc.GeneralNotesAutomation
                             }
                             else
                             {
+                                viewIndex = 0;
                                 newCategoryGroupStarted = true;
+                                if (viewData.Count != 0)
+                                {
+                                    if ((origin.Y - viewData[viewIndex].ViewLength) > workingAreaBoundingBox.Min.Y)
+                                    {
+                                        PlaceView(viewData, viewIndex);
+                                        numberOfViewsToPlace--;
+                                        newCategoryGroupStarted = true;
+                                    }
+                                    else
+                                    {
+                                        currentColumn++;
+                                        if (currentColumn > maxNumberOfColumns)
+                                        {
+                                            currentSheetIndex++;
+                                            currentSheetElementId = sheetData[currentSheetIndex].SheetId; // this is the like causing the out of range error. 
+                                            currentColumn = 0;
+                                        }                                        
+                                        origin = protoOrigin;
+                                        PlaceView(viewData, viewIndex); 
+                                        numberOfViewsToPlace--;
+                                        newCategoryGroupStarted = true;
+                                        tries = 0;                              
+                                    }
+                                }
                             }
                             if (tries == maxTries)
                             {
@@ -386,7 +412,8 @@ namespace rjc.GeneralNotesAutomation
                             }
                             tries++;
                         }
-                        viewIndex = 0;
+
+                        /*viewIndex = 0;
                         // stops there from being an error with trying to query viewData with an index if there are no more elements in the list
                         if (viewIndex != viewData.Count)
                         {
@@ -417,7 +444,7 @@ namespace rjc.GeneralNotesAutomation
                                 tries = 0;
                                 continue;
                             }
-                        }                        
+                        }*/                        
                     }
                 }
                 catch (Exception e)
