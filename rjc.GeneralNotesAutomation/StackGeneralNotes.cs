@@ -170,10 +170,12 @@ namespace rjc.GeneralNotesAutomation
 
             #endregion
 
+
             #region transaction to reposition titleblocks and delete viewports
 
             //double boundingBoxBorder = 0.01; //in feet
             double typicalNoteWidth = unitConversion.mmToFt(160); //in 
+
             //remove viewports from sheets so they can be placed fresh
             transactionGroup.Start("Delete Viewports");
 
@@ -232,7 +234,7 @@ namespace rjc.GeneralNotesAutomation
             int currentSheetIndex = 0;
             int currentColumn = 0;
             bool newCategoryGroupStarted = false;
-            int i = 0;            
+            int i = 0;
             int viewIndex = 0;
             int nextToPlaceViewIndex = 0;
 
@@ -246,32 +248,45 @@ namespace rjc.GeneralNotesAutomation
             double currentViewLength = 0;
             int numberOfViewsToPlace = viewData.Count;
 
+            int maxTries = 50;
+            int tries = 0;
+
             //this loop will iterate until all the views have been placed
-            for (i = 0; i < numberOfViewsToPlace; i++)
+            while (numberOfViewsToPlace > 0 || tries > maxTries)
             {
                 viewElementIdToPlace = null;
-                viewIndex = 0;
-                int maxTries = 1000;
-                int tries = 0;
+                viewIndex = 0;                
+                newCategoryGroupStarted = false;
 
-                /*try
-                {*/
+                try
+                {
                     if (placedViewData.Count == 0)
                     {
                         PlaceView(viewData, viewIndex);
                         numberOfViewsToPlace--;
                     }
                     // follows this while loop until the new Category Group is changed.
-                    while (newCategoryGroupStarted == false)
+                    while (newCategoryGroupStarted == false || nextToPlaceViewIndex < nextToPlaceViewData.Count)
                     {
                         //While current viewIndex hasn't reached the end of viewData 
                         while (viewIndex < viewData.Count)
                         {
+                            // if the view length will never fit regardless of new column - as in user error in selecting a too-small pickbox
+                            if (viewIndex != viewData.Count)
+                            {
+                                if (viewData[viewIndex].ViewLength < workingAreaBoundingBox.Min.Y)
+                                {
+                                    throw new Exception($"The bounding box selected by the user is too small to fit some views. If the bounding box needs to be this small" +
+                                                     " to accommodate a small sheet size for example, you will need to split and resize this view: \n" + viewData[viewIndex].ViewName +
+                                                         "\nTo maintain both split views' ability to auto-stack, please add A,B,C,D, etc. to the end of the RJC Standard View ID parameter for each view");
+                                }
+                            }
                             // while the attempted view matches the Standard View ID of the last placed view, AND the view fits
                             while (CompareRjcSVI(viewData, viewIndex, placedViewData, placedViewData.Count - 1) && ((origin.Y - viewData[viewIndex].ViewLength) > workingAreaBoundingBox.Min.Y))
                             {
                                 PlaceView(viewData, viewIndex);
                                 numberOfViewsToPlace--;
+                                tries = 0;
                             }
                             // while the attempted view matches the Standard View ID of the last placed view, AND the view DOESN'T fit
                             if (CompareRjcSVI(viewData, viewIndex, placedViewData, placedViewData.Count - 1) && ((origin.Y - viewData[viewIndex].ViewLength) < workingAreaBoundingBox.Min.Y))
@@ -279,22 +294,12 @@ namespace rjc.GeneralNotesAutomation
                                 nextToPlaceViewData.Add(viewData[viewIndex]);
                                 viewData.RemoveAt(viewIndex);
                                 numberOfViewsToPlace--;
-                                // might need to add a viewIndex++; here
-                            }
+                                tries = 0;
+                            }                            
                             // if the attempted view DOESN'T match the Standard View ID of the last placed view
                             else
                             {
                                 viewIndex++;
-                            }
-                            // if the view length will never fit regardless of new column - as in user error in selecting a too-small pickbox
-                            if (viewIndex != viewData.Count)
-                            {
-                                if (viewData[viewIndex].ViewLength < workingAreaBoundingBox.Min.Y)
-                                {
-                                    throw new Exception($"The bounding box selected by the user is too small to fit some views. If the bounding box needs to be this small" +
-                                                        "to accommodate a small sheet size for example, you will need to split and resize this view: \n{viewData[viewIndex].viewName}" +
-                                                        "To maintain both split views' ability to auto-stack, please add A,B,C,D, etc. to the end of the RJC Standard View ID parameter for each view");
-                                }
                             }
                             if (tries == maxTries)
                             {
@@ -302,92 +307,124 @@ namespace rjc.GeneralNotesAutomation
                             }
                             tries++;
                         }
-                        // if there are any views that match the category group, but didn't fit on the same column, start new column and place rest of matching category group views
-                        if (nextToPlaceViewData.Count > 0)
+                        // after trying to fit in the same column, move onto the next column after going through all viewData items
+                        if (viewIndex == viewData.Count)
                         {
                             currentColumn++;
-                            nextToPlaceViewIndex = 0;
-                            origin = protoOrigin;
-
-                            // while there are 'saved views left in the category group'
-                            while (nextToPlaceViewData.Count > 0)
+                            if (currentColumn > maxNumberOfColumns)
                             {
-                                // if the view fits
-                                if ((origin.Y - nextToPlaceViewData[nextToPlaceViewIndex].ViewLength) > workingAreaBoundingBox.Min.Y)
+                                currentSheetIndex++;
+                                currentSheetElementId = sheetData[currentSheetIndex].SheetId; // this is the like causing the out of range error. 
+                                currentColumn = 0;
+                            }
+                            // if there are any views that match the category group, but didn't fit on the same column, start new column and place rest of matching category group views
+                            if (nextToPlaceViewData.Count > 0)
+                            {
+                                nextToPlaceViewIndex = 0;
+                                origin = protoOrigin;
+
+                                // while there are 'saved views left in the category group'
+                                while (nextToPlaceViewData.Count > 0)
                                 {
-                                    PlaceView(nextToPlaceViewData, nextToPlaceViewIndex);
-                                }
-                                else
-                                {
-                                    nextToPlaceViewIndex++;
-                                }
-                                if (nextToPlaceViewData.Count > 0)
-                                {
-                                    // if the view length will never fit regardless of new column - as in user error in selecting a too-small pickbox
-                                    if (nextToPlaceViewData[nextToPlaceViewIndex].ViewLength < workingAreaBoundingBox.Min.Y)
+                                    // this makes sure there is no out of index error
+                                    if (nextToPlaceViewData.Count > 0 && nextToPlaceViewIndex != nextToPlaceViewData.Count)
                                     {
-                                        throw new Exception($"The bounding box selected by the user is too small to fit some views. If the bounding box needs to be this small" +
-                                                        "to accommodate a small sheet size for example, you will need to split and resize this view: \n{viewData[viewIndex].viewName}" +
-                                                        "\nTo maintain both split views' ability to auto-stack, please add A,B,C,D, etc. to the end of the RJC Standard View ID parameter for each view");
+                                        // if the view length will never fit regardless of new column - as in user error in selecting a too-small pickbox
+                                        if (nextToPlaceViewData[nextToPlaceViewIndex].ViewLength < workingAreaBoundingBox.Min.Y)
+                                        {
+                                            throw new Exception($"The bounding box selected by the user is too small to fit some views. If the bounding box needs to be this small" +
+                                                            " to accommodate a small sheet size for example, you will need to split and resize this view: \n" + nextToPlaceViewData[nextToPlaceViewIndex].ViewName +
+                                                                "\nTo maintain both split views' ability to auto-stack, please add A,B,C,D, etc. to the end of the RJC Standard View ID parameter for each view");
+                                        }
                                     }
-                                }
-                                //what to do if the conditions are never met
-                                if (nextToPlaceViewIndex == nextToPlaceViewData.Count)
-                                {
-                                    currentColumn++;
-                                    if (currentColumn > maxNumberOfColumns)
+                                    if (nextToPlaceViewIndex == nextToPlaceViewData.Count && nextToPlaceViewData.Count != 0)
                                     {
-                                        currentSheetIndex++;
-                                        currentSheetElementId = sheetData[currentSheetIndex].SheetId;
-                                        currentColumn = 0;
+                                        currentColumn++;
+                                        if (currentColumn > maxNumberOfColumns)
+                                        {
+                                            currentSheetIndex++;
+                                            currentSheetElementId = sheetData[currentSheetIndex].SheetId; // this is the like causing the out of range error. 
+                                            currentColumn = 0;
+                                        }
+                                        nextToPlaceViewIndex = 0;
+                                        origin = protoOrigin;
+                                        PlaceView(nextToPlaceViewData, nextToPlaceViewIndex);
+                                        tries = 0;
+                                        continue;
                                     }
-                                    nextToPlaceViewIndex = 0;
-                                    origin = protoOrigin;
-                                    continue;
+                                    // if the view fits
+                                    else if ((origin.Y - nextToPlaceViewData[nextToPlaceViewIndex].ViewLength) > workingAreaBoundingBox.Min.Y)
+                                    {
+                                        PlaceView(nextToPlaceViewData, nextToPlaceViewIndex);
+                                        tries = 0;
+                                    }
+                                    // if we've iterated through all of the nextToPlaceViewData list and they all don't fit in current column, only while there is still views in the list
+                                    else
+                                    {
+                                        nextToPlaceViewIndex++;
+                                    }
+                                    //what to do if the conditions are never met
+                                    if (nextToPlaceViewData.Count == 0)
+                                    {
+                                        newCategoryGroupStarted = true;
+                                        nextToPlaceViewIndex = 0;
+                                    }
+                                    if (tries == maxTries)
+                                    {
+                                        break;
+                                    }
+                                    tries++;
                                 }
-                                if (nextToPlaceViewData.Count == 0)
+                            }
+                            else
+                            {
+                                newCategoryGroupStarted = true;
+                            }
+                            if (tries == maxTries)
+                            {
+                                break;
+                            }
+                            tries++;
+                        }
+                        viewIndex = 0;
+                        // stops there from being an error with trying to query viewData with an index if there are no more elements in the list
+                        if (viewIndex != viewData.Count)
+                        {
+                            // if the next view in the viewData fits, place it. This will be the start of a new 'category group'
+                            if ((origin.Y - viewData[viewIndex].ViewLength) > workingAreaBoundingBox.Min.Y)
+                            {
+                                if (viewData.Count != 0)
                                 {
+                                    PlaceView(viewData, viewIndex);
+                                    numberOfViewsToPlace--;
                                     newCategoryGroupStarted = true;
                                 }
                             }
-                        }
-                        else
-                        {
-                            newCategoryGroupStarted = true;
-                        }
-                        if (tries == maxTries)
-                        {
-                            break;
-                        }
-                        tries++;
+                            else
+                            {
+                                currentColumn++;
+                                if (currentColumn > maxNumberOfColumns)
+                                {
+                                    currentSheetIndex++;
+                                    currentSheetElementId = sheetData[currentSheetIndex].SheetId; // this is the like causing the out of range error. 
+                                    currentColumn = 0;
+                                }
+                                viewIndex = 0;
+                                origin = protoOrigin;
+                                PlaceView(viewData, viewIndex);
+                                numberOfViewsToPlace--;
+                                newCategoryGroupStarted = true;
+                                tries = 0;
+                                continue;
+                            }
+                        }                        
                     }
-
-                    //
-                    currentColumn++;
-
-                    if (currentColumn > maxNumberOfColumns)
-                    {
-                        currentSheetIndex++;
-                        currentSheetElementId = sheetData[currentSheetIndex].SheetId;
-                        currentColumn = 0;
-                    }
-
-                    viewIndex = 0;
-                    origin = protoOrigin;
-                    continue;
-                /*}
+                }
                 catch (Exception e)
                 {
-                    if (placedViewData.Count == 0)
-                    {
-                        viewElementIdToPlace = viewData[viewIndex].viewElementId; // saves the elementId of the view to place next
-                        currentViewLength = viewData[viewIndex].viewLength;
-                        placedViewData.Add(viewData[viewIndex]);
-                        viewData.RemoveAt(viewIndex);
-                    }
-                    continue;
-                }*/
-               
+                    throw new Exception("There was an error during script execution, so please review your drawing, and you might want to undo the changes\n" + e);                    
+                }
+
                 void PlaceView(List<ViewData> sourceList, int index)
                 {
                     viewElementIdToPlace = sourceList[index].ViewElementId; // saves the elementId of the view to place next
