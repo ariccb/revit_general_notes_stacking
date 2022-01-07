@@ -170,11 +170,62 @@ namespace rjc.GeneralNotesAutomation
 
             #endregion
 
-
-            #region transaction to reposition titleblocks and delete viewports
-
+            #region user point selection
             //double boundingBoxBorder = 0.01; //in feet
             double typicalNoteWidth = unitConversion.mmToFt(160); //in 
+
+            //prompt user to select new working origin
+            uiDoc.ActiveView = doc.GetElement(sheetData[0].SheetId) as ViewSheet;
+            XYZ topRightWorkingArea = uiDoc.Selection.PickPoint("Select Top Right Of Working Area");
+            XYZ bottomLeftWorkingArea = uiDoc.Selection.PickPoint("Select Bottom Left Of Working Area");
+
+            BoundingBoxXYZ workingAreaBoundingBox = new BoundingBoxXYZ
+            {
+                Max = topRightWorkingArea,
+                Min = bottomLeftWorkingArea
+            };
+            //create a list to collect next views to resize
+            List<ViewData> needToResize = new List<ViewData>();
+            // check all general notes to see if they fit within the selected bounding box
+            for (int i = 0; i < viewData.Count; i++)
+            {
+                if(viewData[i].ViewLength > (workingAreaBoundingBox.Max.Y - workingAreaBoundingBox.Min.Y))
+                {
+                    needToResize.Add(viewData[i]);
+                }
+            }
+            if (needToResize.Count != 0)
+            {                
+                List<string> list = new List<string>();               
+                for (int i = 0; i < needToResize.Count; i++)
+                {   
+                    //add all ViewNames to list to be added to a string
+                    list.Add(needToResize[i].ViewName);                    
+                }
+                String oversizeViews = String.Join("\n", list.ToArray());
+                TaskDialog oversizeViewDialog = new TaskDialog("NEED TO RESIZE VIEWS");
+                oversizeViewDialog.CommonButtons = TaskDialogCommonButtons.Ok;
+
+
+                oversizeViewDialog.MainInstruction = "The bounding box selected by the user is too small to fit some views.";
+                oversizeViewDialog.MainContent = "If the bounding box needs to be this small" +
+                                " to accommodate a small sheet size for example, you will need to split these views into multiple smaller views: \n\n" + oversizeViews;
+                oversizeViewDialog.ExpandedContent = "An easy way to do this is: \n1: Right click the views in the Project Browser and select \"Duplicate View > Duplicate With Detailing\". \n\n2: Find both original and duplicated views and " +
+                                    "add \"A,B,C,D\" etc. to the end of the view name. \n\n3: Delete content from original \"A\" note to make fit on desired sheet size,  then delete the content from \"B\" note " +
+                                    "that is already on the \"A\" note you just edited. \n\n4: IN ORDER TO MAINTAIN THE SPLIT VIEWS ABILITY TO AUTO-STACK PROPERLY, PLEASE ADD \"A,B,C,D\" ETC. TO THE END OF THE \"RJC Standard View ID\" PARAMETER FOR EACH VIEW." +
+                                    "\n\n5: Then place the new views onto any General Notes sheet and re-run the \"Stack General Notes\" tool.";
+                TaskDialogResult tResult = oversizeViewDialog.Show();                              
+            }
+
+            //PickedBox pickedBox = uiDoc.Selection.PickBox(PickBoxStyle.Enclosing, "Select Working Sheet Area");
+
+            XYZ protoOrigin = new XYZ(topRightWorkingArea.X - (typicalNoteWidth / 2), topRightWorkingArea.Y, 0);
+            XYZ workingOrigin = protoOrigin;
+            XYZ origin = protoOrigin;
+            #endregion
+
+
+            #region transaction to reposition titleblocks and delete viewports                   
 
             //remove viewports from sheets so they can be placed fresh
             transactionGroup.Start("Delete Viewports");
@@ -207,25 +258,6 @@ namespace rjc.GeneralNotesAutomation
 
             transactionGroup.Assimilate();
 
-            #endregion
-
-            #region user point selection
-            //prompt user to select new working origin
-            uiDoc.ActiveView = doc.GetElement(sheetData[0].SheetId) as ViewSheet;
-            XYZ topRightWorkingArea = uiDoc.Selection.PickPoint("Select Top Right Of Working Area");
-            XYZ bottomLeftWorkingArea = uiDoc.Selection.PickPoint("Select Bottom Left Of Working Area");
-
-            BoundingBoxXYZ workingAreaBoundingBox = new BoundingBoxXYZ
-            {
-                Max = topRightWorkingArea,
-                Min = bottomLeftWorkingArea
-            };
-
-            //PickedBox pickedBox = uiDoc.Selection.PickBox(PickBoxStyle.Enclosing, "Select Working Sheet Area");
-
-            XYZ protoOrigin = new XYZ(topRightWorkingArea.X - (typicalNoteWidth / 2), topRightWorkingArea.Y, 0);
-            XYZ workingOrigin = protoOrigin;
-            XYZ origin = protoOrigin;
             #endregion
 
             #region stack general notes
@@ -270,17 +302,7 @@ namespace rjc.GeneralNotesAutomation
                     {
                         //While current viewIndex hasn't reached the end of viewData 
                         while (viewIndex < viewData.Count)
-                        {
-                            // if the view length will never fit regardless of new column - as in user error in selecting a too-small pickbox
-                            if (viewIndex != viewData.Count)
-                            {
-                                if (viewData[viewIndex].ViewLength < workingAreaBoundingBox.Min.Y)
-                                {
-                                    throw new Exception($"The bounding box selected by the user is too small to fit some views. If the bounding box needs to be this small" +
-                                                     " to accommodate a small sheet size for example, you will need to split and resize this view: \n" + viewData[viewIndex].ViewName +
-                                                         "\nTo maintain both split views' ability to auto-stack, please add A,B,C,D, etc. to the end of the RJC Standard View ID parameter for each view");
-                                }
-                            }
+                        {                            
                             // while the attempted view matches the Standard View ID of the last placed view, AND the view fits
                             while (CompareRjcSVI(viewData, viewIndex, placedViewData, placedViewData.Count - 1) && ((origin.Y - viewData[viewIndex].ViewLength) > workingAreaBoundingBox.Min.Y))
                             {
@@ -326,18 +348,7 @@ namespace rjc.GeneralNotesAutomation
 
                                 // while there are 'saved views left in the category group'
                                 while (nextToPlaceViewData.Count > 0)
-                                {
-                                    // this makes sure there is no out of index error
-                                    if (nextToPlaceViewData.Count > 0 && nextToPlaceViewIndex != nextToPlaceViewData.Count)
-                                    {
-                                        // if the view length will never fit regardless of new column - as in user error in selecting a too-small pickbox
-                                        if (nextToPlaceViewData[nextToPlaceViewIndex].ViewLength < workingAreaBoundingBox.Min.Y)
-                                        {
-                                            throw new Exception($"The bounding box selected by the user is too small to fit some views. If the bounding box needs to be this small" +
-                                                            " to accommodate a small sheet size for example, you will need to split and resize this view: \n" + nextToPlaceViewData[nextToPlaceViewIndex].ViewName +
-                                                                "\nTo maintain both split views' ability to auto-stack, please add A,B,C,D, etc. to the end of the RJC Standard View ID parameter for each view");
-                                        }
-                                    }
+                                {                                    
                                     if (nextToPlaceViewIndex == nextToPlaceViewData.Count && nextToPlaceViewData.Count != 0)
                                     {
                                         currentColumn++;
@@ -411,45 +422,12 @@ namespace rjc.GeneralNotesAutomation
                                 break;
                             }
                             tries++;
-                        }
-
-                        /*viewIndex = 0;
-                        // stops there from being an error with trying to query viewData with an index if there are no more elements in the list
-                        if (viewIndex != viewData.Count)
-                        {
-                            // if the next view in the viewData fits, place it. This will be the start of a new 'category group'
-                            if ((origin.Y - viewData[viewIndex].ViewLength) > workingAreaBoundingBox.Min.Y)
-                            {
-                                if (viewData.Count != 0)
-                                {
-                                    PlaceView(viewData, viewIndex);
-                                    numberOfViewsToPlace--;
-                                    newCategoryGroupStarted = true;
-                                }
-                            }
-                            else
-                            {
-                                currentColumn++;
-                                if (currentColumn > maxNumberOfColumns)
-                                {
-                                    currentSheetIndex++;
-                                    currentSheetElementId = sheetData[currentSheetIndex].SheetId; // this is the like causing the out of range error. 
-                                    currentColumn = 0;
-                                }
-                                viewIndex = 0;
-                                origin = protoOrigin;
-                                PlaceView(viewData, viewIndex);
-                                numberOfViewsToPlace--;
-                                newCategoryGroupStarted = true;
-                                tries = 0;
-                                continue;
-                            }
-                        }*/                        
+                        }                                           
                     }
-                }
+                }              
                 catch (Exception e)
                 {
-                    throw new Exception("There was an error during script execution, so please review your drawing, and you might want to undo the changes\n" + e);                    
+                    throw new Exception("There was an error during script execution, so please review your drawing, and you might want to undo the changes.\n" + e);                    
                 }
 
                 void PlaceView(List<ViewData> sourceList, int index)
