@@ -139,13 +139,15 @@ namespace rjc.GeneralNotesAutomation
                     ViewportOriginY = boundingBoxXYZ.Min.Y * scale,
                     CanPlaceOnSheet = true,
                     ViewportOutline = viewportOutline,
-                    ViewRJCOfficeId = RJCOfficeID.AsString(),
-                    ViewRJCStandardViewId = RJCStandardViewID.AsString()
+                    ViewRJCOfficeIdString = RJCOfficeID.AsString(),
+                    ViewRJCOfficeId = RJCOfficeID,
+                    ViewRJCStandardViewIdString = RJCStandardViewID.AsString(),
+                    ViewRJCStandardViewID = RJCStandardViewID
                 });
             }
 
             viewData = viewData
-                .OrderBy(x => x.ViewRJCStandardViewId)
+                .OrderBy(x => x.ViewRJCStandardViewIdString)
                 //.ThenByDescending(x => x.viewportOriginX)
                 //.ThenByDescending(x => x.viewportOriginY)
                 //.ThenBy(x => x.viewLength)
@@ -436,8 +438,9 @@ namespace rjc.GeneralNotesAutomation
                     currentViewLength = sourceList[index].ViewLength;
                     placedViewData.Add(sourceList[index]);
                     sourceList.RemoveAt(index);
+                    
+                    View view = doc.GetElement(viewElementIdToPlace) as View;                 
 
-                    View view = doc.GetElement(viewElementIdToPlace) as View;
                     BoundingBoxUV actualBoundingBoxUV = view.Outline;
                     BoundingBoxXYZ desiredBoundingBox = formatGeneralNote.GeneralNoteBoundingBox(doc, view);
                     double dTop = actualBoundingBoxUV.Max.V - desiredBoundingBox.Max.Y * ((double)1 / view.Scale);
@@ -452,7 +455,10 @@ namespace rjc.GeneralNotesAutomation
                     XYZ modifiedPlacementPoint = new XYZ(protoOrigin.X - (currentColumn * typicalNoteWidth) + dModifierX, (origin.Y) - (currentViewLength / 2) + dModifierY, 0);
 
                     transaction.Start("Place Viewport");
-                    Viewport.Create(doc, currentSheetElementId, viewElementIdToPlace, modifiedPlacementPoint);
+                    Parameter p = view.LookupParameter("View Classification");
+                    p.Set("04 ASSIGNED VIEWS"); // organized views which have been placed my the script in the project browser
+                    Viewport.Create(doc, currentSheetElementId, viewElementIdToPlace, modifiedPlacementPoint);                    
+                   
                     transaction.Commit();
 
                     origin = new XYZ(placementPoint.X, (placementPoint.Y) - (currentViewLength / 2), 0);
@@ -493,7 +499,7 @@ namespace rjc.GeneralNotesAutomation
             if (list1.Count == 0 || list2.Count == 0) {
                 return false;
             }
-            else if (list1[index1].ViewRJCStandardViewId.Substring(0, 3).DoesStringMatch(list2[index2].ViewRJCStandardViewId.Substring(0, 3)))
+            else if (list1[index1].ViewRJCStandardViewIdString.Substring(0, 3).DoesStringMatch(list2[index2].ViewRJCStandardViewIdString.Substring(0, 3)))
             {
                 return true;
             }

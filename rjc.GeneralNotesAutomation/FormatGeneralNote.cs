@@ -46,7 +46,7 @@ namespace rjc.GeneralNotesAutomation
             Transaction transaction = new Transaction(doc);
             TransactionGroup transactionGroup = new TransactionGroup(doc);
 
-            transactionGroup.Start("Format Note");
+            transactionGroup.Start();
 
             foreach (Viewport v in generalNotesViewports)
             {
@@ -67,7 +67,7 @@ namespace rjc.GeneralNotesAutomation
                     XYZ moveVector = vectorUtilities.TwoPointVector(boundingBoxXYZ.Max, new XYZ());
 
 
-                    transaction.Start("Format Note");
+                    transaction.Start();
 
                     group = doc.Create.NewGroup(allElementsInView.ToElementIds());
                     ElementTransformUtils.MoveElement(doc, group.Id, moveVector);
