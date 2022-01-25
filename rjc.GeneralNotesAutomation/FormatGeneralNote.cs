@@ -17,6 +17,13 @@ namespace rjc.GeneralNotesAutomation
     [Regeneration(RegenerationOption.Manual)]
     class FormatGeneralNote
     {
+
+        private List<string> problemViews = new List<string>(); 
+        public List<string> GetList()
+        {
+            return problemViews;
+        }
+
         //adding this line to test branches
         public void MoveNoteToViewOrigin(Autodesk.Revit.DB.Document doc)
         {
@@ -45,6 +52,9 @@ namespace rjc.GeneralNotesAutomation
             List<View> generalNotesViews = new List<View>();
             Transaction transaction = new Transaction(doc);
             TransactionGroup transactionGroup = new TransactionGroup(doc);
+            //create a list to collect next views that are causing issues
+            
+
 
             transactionGroup.Start();
 
@@ -108,6 +118,19 @@ namespace rjc.GeneralNotesAutomation
                 XYZ endPoint = detailCurve.GeometryCurve.GetEndPoint(1);
                 BK90PointList.Add(startPoint);
                 BK90PointList.Add(endPoint);
+            }
+
+            if (BK90PointList.Count == 0) // if there are no S-ANNO-BK90 Detail Lines in the current view
+            {              
+                problemViews.Add(view.get_Parameter(BuiltInParameter.VIEW_NAME).AsString());
+                // because there is no boundary lines, send a default view boundary to substitute for a real one just to keep the script running. The user should add the detail lines to the view to make it stack properly.
+                BoundingBoxXYZ boundingBoxXYZDefault = new BoundingBoxXYZ
+                {
+                    Max = new XYZ(0.524934383, 0.000000000, 0.000000000),
+                    Min = new XYZ(0.000000000, -0.196850394, 0.000000000)
+                };
+
+                return boundingBoxXYZDefault;
             }
 
             //BK90PointList now contains all the points in the view

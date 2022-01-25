@@ -470,6 +470,34 @@ namespace rjc.GeneralNotesAutomation
             List<ElementId> elementIds = new List<ElementId>(CollectGeneralNotesViewports(doc).ToElementIds());
             Element.ChangeTypeId(doc, elementIds, typeId);
 
+            // access list of problem views from FormatGeneralNote.cs, to display a warning to the user.         
+            List<string> problemListCalled = formatGeneralNote.GetList();        
+
+            if (problemListCalled.Count > 0)
+            {
+                List<string> list = new List<string>();
+                for (int i = 0; i < problemListCalled.Count; i++)
+                {
+                    //add all ViewNames to list to be added to a string
+                    list.Add(problemListCalled[i]);
+                    list.Distinct<string>();      
+                }
+
+                //create dialog box to warn user of the offending view
+                String problemViewsList = String.Join("\n", list.ToArray());
+                TaskDialog ErrorViewTaskDialog = new TaskDialog("View Causing Error For Restacking");
+                ErrorViewTaskDialog.CommonButtons = TaskDialogCommonButtons.Ok;
+
+                ErrorViewTaskDialog.MainInstruction = "A view caused an error with the Stack General Notes tool.";
+                ErrorViewTaskDialog.MainContent = "This is the view that caused the error:\n\n" + problemViewsList + "\n\n";
+                ErrorViewTaskDialog.ExpandedContent = "It is possible that these views don't contain any S-ANNO-BK90 Detail lines to form a border of the " +
+                                                      "General Note, which the Stack General Notes tool uses to determine the extents of the view to process " +
+                                                      "the stacking function. \nIn order to fix this error, please edit the view(s) causing the error and add " +
+                                                      "the S-ANNO-BK90 Detail lines, then re-run the tool";
+                TaskDialogResult tResult = ErrorViewTaskDialog.Show();
+
+            }
+
             transaction.Commit();
 
             transactionGroup.Assimilate();
