@@ -66,8 +66,8 @@ namespace rjc.GeneralNotesAutomation
             AddPushButton(taggingPanel, "StackGeneralNotes", "Stack General Notes", "rjc.GeneralNotesAutomation.StackGeneralNotes",
                 "rjc.GeneralNotesAutomation.Graphics.stack.png", "Automatically stack and organize the General Notes views that are already existing on all sheets in the project containing the name \"General Notes\".");
             
-            AddPushButton(taggingPanel, "PlaceUnassignedViews", "Place Unassigned Views", "rjc.GeneralNotesAutomation.PlaceGeneralNotes",
-               "rjc.GeneralNotesAutomation.Graphics.import_views96px.png", "Place all views in the Project Browser that are categorized as \"03 UNASSIGNED VIEWS\" onto the General Notes sheets.");
+           /* AddPushButton(taggingPanel, "PlaceUnassignedViews", "Place Unassigned Views", "rjc.GeneralNotesAutomation.PlaceGeneralNotes",
+               "rjc.GeneralNotesAutomation.Graphics.import_views96px.png", "Place all views in the Project Browser that are categorized as \"03 UNASSIGNED VIEWS\" onto the General Notes sheets.");*/
 
             return Result.Succeeded;
         }
