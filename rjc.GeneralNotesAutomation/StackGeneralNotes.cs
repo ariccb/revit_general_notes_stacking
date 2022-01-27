@@ -71,7 +71,7 @@ namespace rjc.GeneralNotesAutomation
                 });
 
             }
-
+  
             sheetData = sheetData.OrderBy(x => x.SheetNumber).ToList();
             #endregion
 
@@ -138,20 +138,50 @@ namespace rjc.GeneralNotesAutomation
                     ViewportOriginX = boundingBoxXYZ.Max.X * scale,
                     ViewportOriginY = boundingBoxXYZ.Min.Y * scale,
                     CanPlaceOnSheet = true,
-                    ViewportOutline = viewportOutline,
-                    ViewRJCOfficeIdString = RJCOfficeID.AsString(),
-                    ViewRJCOfficeId = RJCOfficeID,
-                    ViewRJCStandardViewIdString = RJCStandardViewID.AsString(),
+                    ViewportOutline = viewportOutline,                   
+                    ViewRJCOfficeId = RJCOfficeID,                    
                     ViewRJCStandardViewID = RJCStandardViewID
                 });
             }
 
             viewData = viewData
-                .OrderBy(x => x.ViewRJCStandardViewIdString)
+                .OrderBy(x => x.ViewRJCStandardViewID.AsString())
                 //.ThenByDescending(x => x.viewportOriginX)
                 //.ThenByDescending(x => x.viewportOriginY)
                 //.ThenBy(x => x.viewLength)
                 .ToList();
+
+            List<ViewData> highSeismicViewData = new List<ViewData>();
+            List<ViewData> medSeismicViewData = new List<ViewData>();
+            List<ViewData> lowSeismicViewData = new List<ViewData>();
+
+            //need to order alphabetically, then adjust order to group all the "-H", "-M", "-L" seismic notes together. 
+            highSeismicViewData = viewData
+            .TakeWhile(x => x.ViewRJCStandardViewID.AsString().Contains("-H"))
+            .ToList();
+
+            medSeismicViewData= viewData
+            .TakeWhile(x => x.ViewRJCStandardViewID.AsString().Contains("-M"))
+            .ToList();
+
+            lowSeismicViewData = viewData
+            .TakeWhile(x => x.ViewRJCStandardViewID.AsString().Contains("-L"))
+            .ToList();
+
+         
+
+            // continue working here - trying to figure out stacking the high/med/low seismic notes properly, and force the A, B, C notes to follow one another properly.
+            /*
+            List<ViewData> highSeismicViewData = new List<ViewData>();
+            List<ViewData> medSeismicViewData = new List<ViewData>();
+            List<ViewData> lowSeismicViewData = new List<ViewData>();
+
+            highSeismicViewData.TakeWhile(p => viewData.Contains("N1002", Parameter viewData.ViewRJCStandardViewID));
+
+            IEnumerable <ViewData> highSeismic = 
+                from ViewRJCStandardViewID in viewData
+                where ViewRJCStandardViewID with "-H"
+                select*/
 
             #endregion
 
@@ -527,7 +557,7 @@ namespace rjc.GeneralNotesAutomation
             if (list1.Count == 0 || list2.Count == 0) {
                 return false;
             }
-            else if (list1[index1].ViewRJCStandardViewIdString.Substring(0, 3).DoesStringMatch(list2[index2].ViewRJCStandardViewIdString.Substring(0, 3)))
+            else if (list1[index1].ViewRJCStandardViewID.AsString().Substring(0, 3).DoesStringMatch(list2[index2].ViewRJCStandardViewID.AsString().Substring(0, 3)))
             {
                 return true;
             }

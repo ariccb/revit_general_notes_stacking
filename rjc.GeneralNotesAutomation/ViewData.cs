@@ -30,11 +30,7 @@ namespace rjc.GeneralNotesAutomation
 
         public bool IsHollowCoreNote { get; set; }
 
-        public string ViewRJCOfficeIdString { get; set; }
-
-        public Parameter ViewRJCOfficeId { get; set; }
-
-        public string ViewRJCStandardViewIdString { get; set; }
+        public Parameter ViewRJCOfficeId { get; set; }      
 
         public Parameter ViewRJCStandardViewID { get; set; }
     }
