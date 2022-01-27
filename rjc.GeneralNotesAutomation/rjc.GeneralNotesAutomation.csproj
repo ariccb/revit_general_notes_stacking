@@ -65,6 +65,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Application.cs" />
+    <Compile Include="DuplicateSheets.cs" />
     <Compile Include="CreateOutlines.cs" />
     <Compile Include="FormatGeneralNote.cs" />
     <Compile Include="InsertGeneralNotes.cs" />
