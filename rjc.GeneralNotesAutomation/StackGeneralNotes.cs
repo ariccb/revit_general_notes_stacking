@@ -37,7 +37,7 @@ namespace rjc.GeneralNotesAutomation
             Vectors vectorUtilities = new Vectors();
             Views viewUtilities = new Views();
             UnitConversion unitConversion = new UnitConversion();
-            FormatGeneralNote formatGeneralNote = new FormatGeneralNote();
+            FormatGeneralNote formatGeneralNote = new FormatGeneralNote();            
 
             #endregion
 
@@ -66,8 +66,8 @@ namespace rjc.GeneralNotesAutomation
                 {
                     SheetId = vs.Id,
                     SheetName = vs.Name,
-                    SheetNumber = vs.SheetNumber
-
+                    SheetNumber = vs.SheetNumber,
+                    SheetView = vs
                 });
 
             }
@@ -371,6 +371,10 @@ namespace rjc.GeneralNotesAutomation
                                 currentColumn++;
                                 if (currentColumn > maxNumberOfColumns)
                                 {
+                                    if (currentSheetIndex == sheetData.Count - 1)
+                                    {
+                                        DuplicateSheet(sheetData[currentSheetIndex].SheetView);
+                                    }
                                     currentSheetIndex++;
                                     currentSheetElementId = sheetData[currentSheetIndex].SheetId; // this is the like causing the out of range error. 
                                     currentColumn = 0;
@@ -386,6 +390,10 @@ namespace rjc.GeneralNotesAutomation
                                         currentColumn++;
                                         if (currentColumn > maxNumberOfColumns)
                                         {
+                                            if (currentSheetIndex == sheetData.Count - 1)
+                                            {
+                                                DuplicateSheet(sheetData[currentSheetIndex].SheetView);
+                                            }
                                             currentSheetIndex++;
                                             currentSheetElementId = sheetData[currentSheetIndex].SheetId; // this is the like causing the out of range error. 
                                             currentColumn = 0;
@@ -437,7 +445,11 @@ namespace rjc.GeneralNotesAutomation
                                         currentColumn++;
                                         if (currentColumn > maxNumberOfColumns)
                                         {
-                                            currentSheetIndex++;
+                                            if (currentSheetIndex == sheetData.Count - 1)
+                                            {
+                                                DuplicateSheet(sheetData[currentSheetIndex].SheetView);                                                
+                                            }
+                                            currentSheetIndex++;                                           
                                             currentSheetElementId = sheetData[currentSheetIndex].SheetId; // this is the like causing the out of range error. 
                                             currentColumn = 0;
                                         }                                        
@@ -492,7 +504,56 @@ namespace rjc.GeneralNotesAutomation
                     transaction.Commit();
 
                     origin = new XYZ(placementPoint.X, (placementPoint.Y) - (currentViewLength / 2), 0);
-                }               
+                }
+
+                void DuplicateSheet(ViewSheet vSheet)
+                {
+                    // Retrieve titleblock from current sheet and all elements in view
+                    var titleblock = new FilteredElementCollector(doc).OfClass(typeof(FamilyInstance))
+                                    .OfCategory(BuiltInCategory.OST_TitleBlocks).Cast<FamilyInstance>()
+                                    .First(q => q.OwnerViewId == vSheet.Id);
+
+                    using (Transaction t = new Transaction(doc, "Duplicate Sheet"))
+                    {
+                        // Start transaction to duplicate sheet
+                        t.Start();
+
+                        // Duplicate sheet
+                        ViewSheet newsheet = ViewSheet.Create(doc, titleblock.GetTypeId());
+
+                        string str = vSheet.SheetNumber;
+                        var newString = Regex.Replace(str, "\\d+",
+                                                 m => (int.Parse(m.Value) + 1).ToString(new string('0', m.Value.Length)));
+
+                        /*vSheet.get_Parameter(BuiltInParameter.SHEET_NUMBER).Set(vSheet.SheetNumber.Replace(vSheet.SheetNumber, newString));*/ // you could use this line to edit the CURRENT Sheet Number
+                        newsheet.SheetNumber = newString;
+                        newsheet.Name = vSheet.Name;
+
+                        // Get origin of the titleblock
+                        XYZ originTitle = titleblock.GetTransform().Origin;
+                        // Check titleblock position
+                        Element copyTitleBlock = new FilteredElementCollector(doc).OwnedByView(newsheet.Id).OfCategory(BuiltInCategory.OST_TitleBlocks).FirstElement();
+                        LocationPoint titleLoc = copyTitleBlock.Location as LocationPoint;
+                        XYZ titleLocPoint = titleLoc.Point;
+                        // Check if title block is in the same position as original
+                        if (titleLocPoint.DistanceTo(originTitle) != 0)
+                        {
+                            // Move it in case it is not
+                            titleLoc.Move(originTitle);
+                        }
+
+                        sheetData.Add(new SheetData
+                        {
+                            SheetId = newsheet.Id,
+                            SheetName = newsheet.Name,
+                            SheetNumber = newsheet.SheetNumber,
+                            SheetView = newsheet
+                        });
+
+                        // Commit transaction
+                        t.Commit();
+                    }
+                }
             }
 
             transaction.Start("Change Type");
@@ -550,7 +611,7 @@ namespace rjc.GeneralNotesAutomation
             generalNotesViewports.OfCategory(BuiltInCategory.OST_Viewports).WherePasses(viewportSheetNameParameterFilter);
 
             return generalNotesViewports;
-        }
+        }            
 
         public bool CompareRjcSVI(List<ViewData> list1, int index1, List<ViewData> list2, int index2)
         {
